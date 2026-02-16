@@ -1,0 +1,2421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ZIP Schedule Dashboard</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<!-- Plugin for showing values inside slices -->
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+
+
+<style>
+body{
+    font-family: Inter, system-ui, sans-serif;
+}
+
+/* LEFT PANEL */
+.sidebar{
+    width:72px;
+    min-width:72px;
+    transition:width .25s ease;
+    overflow:hidden;
+}
+.sidebar:hover{
+    width:230px;
+}
+
+/* keep icons centered when collapsed */
+.sidebar .menu-item{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    transition:.2s;
+    border-radius:8px;
+}
+.sidebar .menu-item{
+    width:100%;
+}
+.sidebar .menu-item:hover{
+    background:#173a68;
+}
+
+
+
+/* label animation */
+.label{
+    opacity:0;
+    transition:.2s;
+    white-space:nowrap;
+}
+.sidebar:hover .label{
+    opacity:1;
+}
+
+/* top nav font sizing */
+.top-text{
+    font-size:13px;
+}
+
+/* card */
+.card{
+    background:#fff;
+    border-radius:14px;
+    box-shadow:0 6px 14px rgba(0,0,0,.05);
+    border:1px solid #eef2f6;
+}
+/* Enterprise KPI Styling */
+.kpi-row > div{
+    border:1px solid #eef2f6;
+    transition:.2s;
+    cursor:pointer;
+}
+.kpi-row > div:hover{
+    transform:translateY(-2px);
+    box-shadow:0 8px 18px rgba(0,0,0,.08);
+}
+/* ===== CLEAN COLLAPSED SIDEBAR FIX (FINAL) ===== */
+
+.sidebar:not(:hover) .menu-item{
+    justify-content: center;
+}
+.sidebar svg{ stroke-width:1.8; }
+/* ===== FORCE LUCIDE ICON SIZE IN SIDEBAR ===== */
+/* Stable lucide icon sizing */
+.sidebar .menu-item svg{
+    width:22px;
+    height:22px;
+    flex-shrink:0;
+}
+/* === SIDEBAR ICON VISIBILITY FIX === */
+
+/* Always keep icon visible */
+.sidebar .menu-item i,
+.sidebar .menu-item svg {
+    opacity: 1 !important;
+    display: block;
+}
+
+/* Collapsed state: center icon */
+.sidebar:not(:hover) .menu-item {
+    justify-content: center;
+}
+
+/* Collapsed state: hide text only */
+.sidebar:not(:hover) .menu-item .label {
+    display: none;
+}
+
+/* Ensure menu item height is consistent */
+.sidebar .menu-item {
+    height: 48px;
+}
+.sidebar:hover .menu-item{
+    padding-left:16px;
+}
+
+/* ===== ENTERPRISE CHART SIZE FIX ===== */
+.card canvas{
+width:100% !important;
+height:100% !important;
+}
+
+/* Modal Scrollbar */
+.modal-content::-webkit-scrollbar {
+    width: 6px;
+}
+.modal-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+}
+.modal-content::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 10px;
+}
+#upcomingModal, #kpiModal, #dollarModal, #maximizeModal, #kpiStatsModal, #assignModal, #laborTableModal{
+z-index:9999;
+}
+#upcomingModal > div,
+#kpiModal > div,
+#dollarModal > div,
+#maximizeModal > div,
+#kpiStatsModal > div,
+#assignModal > div,
+#laborTableModal > div{
+animation:scaleIn .18s ease;
+}
+@keyframes scaleIn{
+from{transform:scale(.96);opacity:0;}
+to{transform:scale(1);opacity:1;}
+}
+/* ===== LABOR HISTORY TABLE ===== */
+.labor-table{
+    width:100%;
+    border-collapse:separate;
+    border-spacing:0;
+    font-size:13px;
+}
+.labor-table th,
+.labor-table td{
+    text-align:center;
+}
+.labor-table thead th{
+    background:#f1f5f9;
+    color:#475569;
+    font-weight:600;
+    padding:12px 10px;
+    border-bottom:1px solid #e2e8f0;
+    white-space:nowrap;
+}
+.labor-table tbody td{
+    padding:11px 10px;
+    border-bottom:1px solid #eef2f6;
+    color:#334155;
+}
+.labor-table tbody tr:hover{
+    background:#f8fafc;
+}
+.labor-date{
+    color:#2563eb;
+    cursor:pointer;
+    font-weight:500;
+}
+.status-dot{
+    width:22px;
+    height:22px;
+    border-radius:999px;
+    background:#2563eb;
+    color:#fff;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+}
+.table-toolbar{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:10px;
+}
+.table-actions button{
+    padding:6px 10px;
+    border-radius:8px;
+    border:1px solid #e2e8f0;
+    background:white;
+    font-size:12px;
+    display:flex;
+    align-items:center;
+    gap:6px;
+}
+.table-actions button:hover{
+    background:#f8fafc;
+}
+</style>
+</head>
+
+<body class="h-screen overflow-hidden bg-[#eef2f6] flex flex-col">
+<!-- TOP BAR -->
+<div class="h-14 bg-[#0b2545] text-white flex items-center justify-between px-5">
+
+    <!-- LEFT -->
+    <div class="flex items-center gap-6 top-text">
+	<!-- TOP LEFT APP ICON -->
+
+        <div class="relative">
+<button id="appsBtn" onclick="toggleApps()"
+    class="w-9 h-9 rounded-lg bg-[#3b82f6] flex items-center justify-center shadow-sm">
+    <i data-lucide="layout-grid" class="w-5 h-5 text-white"></i>
+</button>
+
+<div id="appsMenu"
+class="hidden absolute left-0 mt-2 w-44 bg-white text-slate-700 rounded-lg shadow-lg text-[13px]">
+
+<div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">Zip Clock</div>
+<div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">Zip Inventory</div>
+<div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">Zip Ordering</div>
+
+</div>
+</div>
+
+        <div class="flex items-center gap-2">
+            <i data-lucide="home"></i>
+            <span>Dashboard</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <i data-lucide="calendar-days"></i>
+            <span>Schedule</span>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <i data-lucide="map-pin"></i>
+            <span>085 - Del Mar</span>
+            <i data-lucide="chevron-down" class="w-4"></i>
+        </div>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="flex items-center gap-5 top-text">
+
+        <div class="flex items-center gap-2">
+            <i data-lucide="cloud"></i>
+            <span>75°F</span>
+        </div>
+
+        <div class="border-l border-blue-700 h-5"></div>
+
+        <div>04:33 AMERICA/LOS ANGELES</div>
+
+        <!-- STORE DROPDOWN -->
+        <div class="relative">
+    <button id="storeBtn" onclick="toggleStore()"
+        class="bg-white text-slate-700 px-4 py-1 rounded-full flex items-center gap-2">
+        <i data-lucide="building-2" class="w-4"></i>
+        Original Fish Taco, LLC
+        <i data-lucide="chevron-down" class="w-4"></i>
+    </button>
+
+    <div id="storeMenu"
+        class="hidden absolute right-0 mt-2 w-56 bg-white text-slate-700 rounded-lg shadow-lg text-[13px]">
+        <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">085 - Del Mar</div>
+        <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">086 - Santa Ana</div>
+        <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">087 - Riverside</div>
+    </div>
+</div>
+
+        <i data-lucide="settings"></i>
+        <div class="w-8 h-8 rounded-full bg-slate-300"></div>
+
+    </div>
+
+</div>
+<div class="flex flex-1 overflow-hidden">
+
+
+<!-- LEFT SIDEBAR -->
+<div class="sidebar bg-[#0b2545] text-white flex flex-col justify-between">
+
+
+
+    <div>
+        <!-- Logo -->
+
+        <!-- MENU -->
+        <div class="pt-2 w-full">
+
+
+            <div href="index.html" class="menu-item px-4 py-3 bg-[#1d3b6a]">
+                <i data-lucide="home"></i>
+                <span class="label">Dashboard</span>
+            </div>
+
+            <div href="schedule.html" class="menu-item px-4 py-3 opacity-90">
+                <i data-lucide="calendar-days"></i>
+                <span class="label">Schedule</span>
+            </div>
+
+            <div class="menu-item px-4 py-3 opacity-90">
+                <i data-lucide="clock"></i>
+                <span class="label">Standard Shifts</span>
+            </div>
+			
+			<div href="forecasting.html" class="menu-item px-4 py-3 opacity-90">
+				<i data-lucide="trending-up"></i>
+				<span class="label">Forecasting</span>
+			</div>
+
+            <div class="menu-item px-4 py-3 opacity-90">
+                <i data-lucide="users"></i>
+                <span class="label">Team Center</span>
+            </div>
+
+            <div class="menu-item px-4 py-3 opacity-90">
+                <i data-lucide="file-text"></i>
+                <span class="label">Reports</span>
+            </div>
+
+            <div class="menu-item px-4 py-3 opacity-90">
+
+                <i data-lucide="cloud"></i>
+                <span class="label">Cloud Library</span>
+            </div>
+
+            <div class="menu-item px-4 py-3 opacity-90">
+                <i data-lucide="user"></i>
+                <span class="label">Employees</span>
+            </div>
+
+        </div>
+    </div>
+
+    <!-- BOTTOM ICONS -->
+    <div class="pb-4 flex flex-col items-center gap-3">
+        <div class="bg-blue-500 w-10 h-10 rounded-full flex items-center justify-center">
+            <i data-lucide="wrench"></i>
+        </div>
+        <div class="bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center">
+            <i data-lucide="headset"></i>
+        </div>
+    </div>
+
+</div>
+
+<!-- RIGHT CONTENT -->
+<div class="flex-1 flex flex-col">
+
+
+
+<!-- MAIN DASHBOARD AREA -->
+<div class="flex-1 p-5 overflow-y-auto space-y-5">
+
+<!-- ===== CALENDAR & KPI NAVIGATION ROW ===== -->
+<div class="flex items-center justify-between">
+    <div class="flex items-center gap-4">
+        <!-- WEEK DISPLAY & CALENDAR -->
+        <div class="flex items-center gap-2 bg-white px-4 py-2 rounded-lg border border-slate-200 shadow-sm relative overflow-hidden">
+            <div class="relative flex items-center justify-center w-6 h-6">
+                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                <input type="date" id="hiddenDatePicker" class="absolute inset-0 opacity-0 cursor-pointer w-full h-full" onchange="handleDateSelect(this.value)">
+            </div>
+            <span id="weekDisplay" class="text-[14px] font-semibold text-slate-700">Week: 02/16/2026 - 02/22/2026</span>
+        </div>
+
+        <!-- KPI BUTTON -->
+        <button onclick="openKpiStatsModal()" class="bg-[#3b82f6] hover:bg-blue-600 text-white flex items-center gap-2 px-6 py-2 rounded-full font-bold text-[14px] shadow-sm transition-all">
+            <div class="border-r border-white/30 pr-2">
+                <i data-lucide="table-properties" class="w-4 h-4"></i>
+            </div>
+            KPI's
+        </button>
+    </div>
+</div>
+
+<!-- KPI STRIP (NEW ENTERPRISE STYLE) -->
+<div class="grid grid-cols-5 gap-4 kpi-row">
+<!-- ENTERPRISE KPI TILE -->
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+
+    <!-- TOP -->
+    <div class="flex items-start justify-between">
+        
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <i data-lucide="gauge-circle" class="w-5 h-5 text-blue-600"></i>
+            </div>
+
+            <div class="text-[13px] text-slate-700 font-semibold">
+
+                Labor Efficiency
+            </div>
+        </div>
+
+        <div onclick="openTrendModal('efficiency')"
+class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer hover:bg-slate-100">
+    <i data-lucide="line-chart" class="w-4 h-4 text-slate-700"></i>
+</div>
+
+    </div>
+
+    <!-- VALUE -->
+    <div class="mt-3 flex items-center gap-2">
+        <div class="text-3xl font-semibold text-slate-800">94.2%</div>
+
+        <div class="inline-flex items-center gap-1 bg-green-100 text-green-700 text-[12px] px-2 py-1 rounded-full">
+            <i data-lucide="arrow-up" class="w-3 h-3"></i>
+            +12.0% this week
+        </div>
+    </div>
+
+    <!-- BOTTOM STRIP -->
+    <div class="mt-4 bg-slate-50 rounded-xl px-4 py-3 flex justify-between text-[12px]">
+        <div>
+            <div class="text-slate-600 font-medium tracking-wide">PROJECTED</div>
+            <div class="font-semibold text-slate-700">92.0%</div>
+        </div>
+
+        <div class="w-px bg-slate-200"></div>
+
+        <div class="text-right">
+            <div class="text-slate-600 font-medium tracking-wide">VARIANCE</div>
+            <div class="font-semibold text-green-600">+2.2%</div>
+        </div>
+    </div>
+
+</div>
+
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<div class="w-9 h-9 rounded-lg bg-green-50 flex items-center justify-center">
+<i data-lucide="dollar-sign" class="w-5 h-5 text-green-600"></i>
+</div>
+<div class="text-[13px] text-slate-700 font-semibold">Labor Cost %</div>
+</div>
+
+<div onclick="openTrendModal('labor')"
+class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer hover:bg-slate-100">
+    <i data-lucide="line-chart" class="w-4 h-4 text-slate-700"></i>
+</div>
+</div>
+
+<div class="mt-3 flex items-center gap-2">
+<div class="text-3xl font-semibold text-slate-800">18%</div>
+
+<div class="inline-flex items-center gap-1 bg-green-100 text-green-700 text-[12px] px-2 py-1 rounded-full">
+<i data-lucide="arrow-down" class="w-3 h-3"></i>
+-2.4% this week
+</div>
+</div>
+
+<div class="mt-4 bg-slate-50 rounded-xl px-4 py-3 flex justify-between text-[12px]">
+<div>
+<div class="text-slate-600 font-medium silicate font-semibold text-green-600">TARGET</div>
+<div class="font-semibold text-slate-700">20%</div>
+</div>
+
+<div class="w-px bg-slate-200"></div>
+
+<div class="text-right">
+<div class="text-slate-600 font-medium silicate font-semibold text-green-600">-2%</div>
+</div>
+</div>
+
+</div>
+
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+
+    <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-orange-50 flex items-center justify-center">
+                <i data-lucide="timer" class="w-5 h-5 text-orange-500"></i>
+            </div>
+            <div class="text-[13px] text-slate-700 font-semibold">Overtime Risk</div>
+        </div>
+
+        <div onclick="openTrendModal('otRisk')"
+class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer hover:bg-slate-100">
+    <i data-lucide="line-chart" class="w-4 h-4 text-slate-700"></i>
+</div>
+    </div>
+
+    <div class="mt-3 flex items-center gap-2">
+        <div class="text-3xl font-semibold text-slate-800">4</div>
+
+        <div class="inline-flex items-center gap-1 bg-orange-50 text-orange-600 text-[12px] px-2 py-1 rounded-full">
+    <i data-lucide="arrow-up" class="w-3 h-3"></i>
+    +1 this week
+</div>
+    </div>
+
+    <div class="mt-4 bg-slate-50 rounded-xl px-4 py-3 flex justify-between text-[12px]">
+        <div>
+            <div class="text-slate-600 font-medium text-slate-700">TODAY</div>
+            <div class="font-semibold text-slate-700">1</div>
+        </div>
+
+        <div class="w-px bg-slate-200"></div>
+
+        <div class="text-right">
+            <div class="text-slate-600 font-medium text-slate-700">WEEK</div>
+            <div class="font-semibold text-slate-700">9</div>
+        </div>
+    </div>
+
+</div>
+
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+
+    <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+                <i data-lucide="shield-check" class="w-5 h-5 text-emerald-600"></i>
+            </div>
+            <div class="text-[13px] text-slate-700 font-semibold">KPI Compliance</div>
+        </div>
+
+        <div onclick="openTrendModal('compliance')"
+class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer hover:bg-slate-100">
+    <i data-lucide="line-chart" class="w-4 h-4 text-slate-700"></i>
+</div>
+    </div>
+
+    <div class="mt-3 flex items-center gap-2">
+        <div class="text-3xl font-semibold text-slate-800">96.5%</div>
+
+        <div class="inline-flex items-center gap-1 bg-emerald-100 text-emerald-700 text-[12px] px-2 py-1 rounded-full">
+    <i data-lucide="arrow-up" class="w-3 h-3"></i>
+    +0.5% this week
+</div>
+    </div>
+
+    <div class="mt-4 bg-slate-50 rounded-xl px-4 py-3 flex justify-between text-[12px]">
+        <div>
+            <div class="text-slate-600 font-medium">TARGET</div>
+            <div class="font-semibold text-slate-700">98%</div>
+        </div>
+
+        <div class="w-px bg-slate-200"></div>
+
+        <div class="text-right">
+            <div class="text-slate-600 font-medium silicate font-semibold text-green-600">-1.5%</div>
+        </div>
+    </div>
+
+</div>
+
+<div class="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 flex flex-col justify-between">
+
+    <div class="flex items-start justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center">
+                <i data-lucide="user-check" class="w-5 h-5 text-blue-600"></i>
+            </div>
+            <div class="text-[13px] text-slate-700 font-semibold">Schedule Adherence</div>
+        </div>
+
+        <div onclick="openTrendModal('adherence')"
+class="w-9 h-9 rounded-lg bg-slate-50 flex items-center justify-center cursor-pointer hover:bg-slate-100">
+    <i data-lucide="line-chart" class="w-4 h-4 text-slate-700"></i>
+</div>
+    </div>
+
+    <div class="mt-3 flex items-center gap-2">
+        <div class="text-3xl font-semibold text-slate-800">98.5%</div>
+
+        <div class="inline-flex items-center gap-1 bg-blue-100 text-blue-700 text-[12px] px-2 py-1 rounded-full">
+    <i data-lucide="arrow-up" class="w-3 h-3"></i>
+    +2.4% this week
+</div>
+    </div>
+
+    <div class="mt-4 bg-slate-50 rounded-xl px-4 py-3 flex justify-between text-[12px]">
+        <div>
+            <div class="text-slate-600 font-medium">TARGET</div>
+            <div class="font-semibold text-slate-700">95.0%</div>
+        </div>
+
+        <div class="w-px bg-slate-200"></div>
+
+        <div class="text-right">
+            <div class="text-slate-600 font-medium silicate font-semibold text-green-600">+3.5%</div>
+        </div>
+    </div>
+
+</div>
+
+</div>
+
+<!-- ===== SECONDARY KPI GROUP BLOCKS (UPDATED CATEGORIES) ===== -->
+<div class="grid grid-cols-4 gap-4">
+
+<!-- BLOCK 1 (Shifts) -->
+<div
+class="rounded-xl p-4 text-white flex justify-between items-center"
+style="background:linear-gradient(135deg,#ff6b6b,#ef4444);">
+
+<div onclick="openUpcomingModal()"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="calendar-plus" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Upcoming Shifts</div>
+<div class="font-semibold text-lg">10</div>
+</div>
+
+<div class="w-px bg-white/20 h-8"></div>
+
+<div onclick="openKpiModal('currentlyIn')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="users" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Currently In</div>
+<div class="font-semibold text-lg">6</div>
+</div>
+
+</div>
+
+
+<!-- BLOCK 2 (Hours) -->
+<div class="rounded-xl p-4 text-white flex justify-between items-center"
+style="background:linear-gradient(135deg,#6366f1,#4f46e5);">
+
+<div onclick="openKpiModal('todayHours')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="clock" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Today Hours</div>
+<div class="font-semibold text-lg">14:30</div>
+</div>
+
+<div class="w-px bg-white/20 h-8"></div>
+
+<div onclick="openKpiModal('weeklyHours')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="calendar-range" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Weekly Hours</div>
+<div class="font-semibold text-lg">100:29</div>
+</div>
+
+</div>
+
+
+<!-- BLOCK 3 (Overtime) -->
+<div class="rounded-xl p-4 text-white flex justify-between items-center"
+style="background:linear-gradient(135deg,#34d399,#10b981);">
+
+<div onclick="openKpiModal('todayOT')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="timer" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Today OT</div>
+<div class="font-semibold text-lg">00:00</div>
+</div>
+
+<div class="w-px bg-white/20 h-8"></div>
+
+<div onclick="openKpiModal('weeklyOT')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="timer-reset" class="mx-auto w-5 h-5 mb-1"></i>
+<div class="text-[11px] opacity-80 uppercase font-bold tracking-tight">Weekly OT</div>
+<div class="font-semibold text-lg">02:15</div>
+</div>
+
+</div>
+
+
+<!-- BLOCK 4 (Staff & Dollars) -->
+<div class="rounded-xl p-4 text-white flex justify-between items-center gap-1"
+style="background:linear-gradient(135deg,#38bdf8,#0284c7);">
+
+<div onclick="openKpiModal('todayStaff')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="user-check" class="mx-auto w-4 h-4 mb-1"></i>
+<div class="text-[9px] opacity-80 uppercase font-bold">Today Staff</div>
+<div class="font-semibold text-base">8</div>
+</div>
+
+<div class="w-px bg-white/10 h-6"></div>
+
+<div onclick="openKpiModal('weeklyStaff')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="users-2" class="mx-auto w-4 h-4 mb-1"></i>
+<div class="text-[9px] opacity-80 uppercase font-bold">Weekly Staff</div>
+<div class="font-semibold text-base">42</div>
+</div>
+
+<div class="w-px bg-white/10 h-6"></div>
+
+<div onclick="openDollarModal('todayDollar')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="banknote" class="mx-auto w-4 h-4 mb-1"></i>
+<div class="text-[9px] opacity-80 uppercase font-bold">Today $</div>
+<div class="font-semibold text-base">420</div>
+</div>
+
+<div class="w-px bg-white/10 h-6"></div>
+
+<div onclick="openDollarModal('weeklyDollar')"
+class="flex-1 text-center cursor-pointer hover:opacity-90 transition">
+<i data-lucide="landmark" class="mx-auto w-4 h-4 mb-1"></i>
+<div class="text-[9px] opacity-80 uppercase font-bold">Weekly $</div>
+<div class="font-semibold text-base">2.1k</div>
+</div>
+
+</div>
+
+</div>
+
+<!-- ACTION PANELS (MIDDLE ROW) -->
+<div class="grid grid-cols-3 gap-5">
+
+<!-- NEEDING ACTION -->
+<div class="card p-4">
+<div class="font-semibold text-[14px] mb-3">Needing Action</div>
+<div class="bg-slate-50 rounded-xl p-3 text-[13px] space-y-2">
+    <!-- TYPE HEADER: TIME OFF -->
+    <div class="flex items-center gap-2 bg-purple-50 text-purple-700 px-2.5 py-1.5 rounded-lg border border-purple-100 text-[11px] font-bold uppercase tracking-tight mb-2">
+        <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+        Time Off
+    </div>
+
+    <!-- ROW: Marcos Delgado -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-[11px] font-semibold">MD</div>
+            <div>
+                <div class="font-medium">Marcos Delgado</div>
+                <div class="text-[11px] text-slate-400">Sun, Feb 08 - Sun, Feb 08</div>
+            </div>
+        </div>
+            <div class="flex items-center gap-1 text-orange-500 text-[12px] ml-auto">
+                <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Pending
+            </div>
+        <div class="flex items-center gap-4">
+            <div class="relative group">
+                <i data-lucide="file-text" class="w-4 h-4 text-blue-500 cursor-pointer"></i>
+                <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-800 text-white text-[11px] rounded shadow-lg invisible group-hover:visible z-50 pointer-events-none transition-all">
+                    Reason: Family trip to visit relatives.
+                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                </div>
+            </div>
+            <i data-lucide="check-circle" class="w-4 h-4 text-green-500 cursor-pointer"></i>
+            <i data-lucide="x-circle" class="w-4 h-4 text-red-500 cursor-pointer"></i>
+        </div>
+    </div>
+
+    <!-- ROW: Jose Ramirez -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-indigo-500 text-white flex items-center justify-center text-[11px] font-semibold">JR</div>
+            <div>
+                <div class="font-medium">Jose Ramirez</div>
+                <div class="text-[11px] text-slate-400">Mon, Feb 10 - Tue, Feb 11</div>
+            </div>
+        </div>
+            <div class="flex items-center gap-1 text-orange-500 text-[12px] ml-auto">
+                <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Pending
+            </div>
+        <div class="flex items-center gap-4">
+            <div class="relative group">
+                <i data-lucide="file-text" class="w-4 h-4 text-blue-500 cursor-pointer"></i>
+                <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-800 text-white text-[11px] rounded shadow-lg invisible group-hover:visible z-50 pointer-events-none transition-all">
+                    Reason: Routine health checkup.
+                    <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                </div>
+            </div>
+            <i data-lucide="check-circle" class="w-4 h-4 text-green-500 cursor-pointer"></i>
+            <i data-lucide="x-circle" class="w-4 h-4 text-red-500 cursor-pointer"></i>
+        </div>
+    </div>
+
+    <!-- ROW: Luis Martinez -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-pink-500 text-white flex items-center justify-center text-[11px] font-semibold">LM</div>
+            <div>
+                <div class="font-medium text-blue-600 text-[13px]">Luis Martinez</div>
+                <div class="text-[11px] text-slate-400">Fri, Feb 14</div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between gap-4 flex-1">
+            <div class="flex items-center gap-1 text-orange-500 text-[12px] ml-auto">
+                <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Pending
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <i data-lucide="file-text" class="w-4 h-4 text-blue-500 cursor-pointer"></i>
+                    <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-800 text-white text-[11px] rounded shadow-lg invisible group-hover:visible z-50 pointer-events-none transition-all">
+                        Reason: House maintenance appointment.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                    </div>
+                </div>
+                <i data-lucide="check-circle" class="w-4 h-4 text-green-500 cursor-pointer"></i>
+                <i data-lucide="x-circle" class="w-4 h-4 text-red-500 cursor-pointer"></i>
+            </div>
+        </div>
+    </div>
+
+    <!-- SUBTITLE SHIFT SWAP -->
+    <div class="flex items-center gap-2 bg-blue-50 text-blue-700 px-2.5 py-1.5 rounded-lg border border-blue-100 text-[11px] font-bold uppercase tracking-tight mt-3 mb-2">
+        <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
+        Shift Swap
+    </div>
+
+    <!-- ROW: Jose Quijada -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-[11px] font-semibold">JQ</div>
+            <div>
+                <div class="font-medium">Jose Quijada</div>
+                <div class="text-[11px] text-slate-400">Swap Fri Evening</div>
+            </div>
+        </div>
+        <div class="flex items-center justify-between gap-4 flex-1">
+            <div class="flex items-center gap-1 text-orange-500 text-[12px] ml-auto">
+                <span class="w-2 h-2 bg-orange-500 rounded-full"></span> Pending
+            </div>
+            
+            <div class="flex items-center gap-4">
+                <div class="relative group">
+                    <i data-lucide="file-text" class="w-4 h-4 text-blue-500 cursor-pointer"></i>
+                    <div class="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 w-48 p-2 bg-slate-800 text-white text-[11px] rounded shadow-lg invisible group-hover:visible z-50 pointer-events-none transition-all">
+                        Reason: Commute issues for the evening shift.
+                        <div class="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-800"></div>
+                    </div>
+                </div>
+                <i data-lucide="check-circle" class="w-4 h-4 text-green-500 cursor-pointer"></i>
+                <i data-lucide="x-circle" class="w-4 h-4 text-red-500 cursor-pointer"></i>
+            </div>
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- AWAITING ACTION FROM OTHERS -->
+<div class="card p-4">
+<div class="font-semibold text-[14px] mb-3">Awaiting Action from Others</div>
+<div class="bg-slate-50 rounded-xl p-3 text-[13px] space-y-2">
+    <!-- TYPE HEADER: SHIFT OFFER -->
+    <div class="flex items-center gap-2 bg-indigo-50 text-indigo-700 px-2.5 py-1.5 rounded-lg border border-indigo-100 text-[11px] font-bold uppercase tracking-tight mb-2">
+        <i data-lucide="repeat" class="w-3.5 h-3.5"></i>
+        Shift Offer
+    </div>
+
+    <!-- ROW: Angel Renteria -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center text-[11px] font-semibold">AR</div>
+            <div>
+                <div class="font-medium">Angel Renteria</div>
+                <div class="text-[11px] text-slate-400">Awaiting Response</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-blue-500 text-[12px]">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Awaiting
+        </div>
+    </div>
+
+    <!-- ROW: Kenia Garcia -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-teal-500 text-white flex items-center justify-center text-[11px] font-semibold">KG</div>
+            <div>
+                <div class="font-medium">Kenía Garcia</div>
+                <div class="text-[11px] text-slate-400">Awaiting Response</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-blue-500 text-[12px]">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Awaiting
+        </div>
+    </div>
+
+    <!-- SUBTITLE TIME OFF -->
+    <div class="flex items-center gap-2 bg-purple-50 text-purple-700 px-2.5 py-1.5 rounded-lg border border-purple-100 text-[11px] font-bold uppercase tracking-tight mt-3 mb-2">
+        <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
+        Time Off
+    </div>
+
+    <!-- ROW: Angel Flores -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-purple-500 text-white flex items-center justify-center text-[11px] font-semibold">AF</div>
+            <div>
+                <div class="font-medium">Angel Flores</div>
+                <div class="text-[11px] text-slate-400">Awaiting Approval</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-blue-500 text-[12px]">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Awaiting
+        </div>
+    </div>
+
+    <!-- ROW: Ernesto Ruiz -->
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm hover:shadow-md transition">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-full bg-rose-500 text-white flex items-center justify-center text-[11px] font-semibold">ER</div>
+            <div>
+                <div class="font-medium">Ernesto Ruiz</div>
+                <div class="text-[11px] text-slate-400">Awaiting Approval</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 text-blue-500 text-[12px]">
+            <span class="w-2 h-2 bg-blue-500 rounded-full"></span> Awaiting
+        </div>
+    </div>
+</div>
+</div>
+
+<!-- UNASSIGNED SHIFTS (NEXT DAY) -->
+<div class="card p-4">
+<div class="font-semibold text-[14px] mb-3">Unassigned Shifts (Next Day)</div>
+<div class="bg-slate-50 rounded-xl p-3 text-[13px] space-y-2">
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm">
+        <div>
+            <div class="font-medium text-[13px]">Line Cook</div>
+            <div class="text-[11px] text-slate-400">Kitchen • 10:00 AM - 4:00 PM</div>
+        </div>
+        <button onclick="openAssignModal('next-day-1', 'Kitchen', 'Line Cook')" class="text-blue-600 text-[12px] font-medium flex items-center gap-1 hover:underline">
+            <i data-lucide="edit-3" class="w-4 h-4"></i> Assign
+        </button>
+    </div>
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm">
+        <div>
+            <div class="font-medium text-[13px]">Cashier</div>
+            <div class="text-[11px] text-slate-400">Front • 11:00 AM - 3:00 PM</div>
+        </div>
+        <button onclick="openAssignModal('next-day-2', 'Front', 'Cashier')" class="text-blue-600 text-[12px] font-medium flex items-center gap-1 hover:underline">
+            <i data-lucide="edit-3" class="w-4 h-4"></i> Assign
+        </button>
+    </div>
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm">
+        <div>
+            <div class="font-medium text-[13px]">Prep Cook</div>
+            <div class="text-[11px] text-slate-400">Kitchen • 08:00 AM - 02:00 PM</div>
+        </div>
+        <button onclick="openAssignModal('next-day-3', 'Kitchen', 'Prep Cook')" class="text-blue-600 text-[12px] font-medium flex items-center gap-1 hover:underline">
+            <i data-lucide="edit-3" class="w-4 h-4"></i> Assign
+        </button>
+    </div>
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm">
+        <div>
+            <div class="font-medium text-[13px]">Dishwasher</div>
+            <div class="text-[11px] text-slate-400">Kitchen • 12:00 PM - 08:00 PM</div>
+        </div>
+        <button onclick="openAssignModal('next-day-4', 'Kitchen', 'Dishwasher')" class="text-blue-600 text-[12px] font-medium flex items-center gap-1 hover:underline">
+            <i data-lucide="edit-3" class="w-4 h-4"></i> Assign
+        </button>
+    </div>
+    <div class="flex items-center justify-between bg-white rounded-lg px-3 py-2 shadow-sm">
+        <div>
+            <div class="font-medium text-[13px]">Server</div>
+            <div class="text-[11px] text-slate-400">Front • 04:00 PM - 10:00 PM</div>
+        </div>
+        <button onclick="openAssignModal('next-day-5', 'Front', 'Server')" class="text-blue-600 text-[12px] font-medium flex items-center gap-1 hover:underline">
+            <i data-lucide="edit-3" class="w-4 h-4"></i> Assign
+        </button>
+    </div>
+</div>
+</div>
+
+</div>
+
+<!-- SMART STATS ROW -->
+<div class="grid grid-cols-3 gap-4">
+
+<div class="card p-5">
+    <div class="flex items-center justify-between mb-2">
+        <select onchange="updateCardGraph(0, this.value)" class="text-[13px] font-bold text-slate-700 bg-transparent outline-none cursor-pointer hover:text-indigo-600">
+            <option value="forecastVsSchStaff">Forecasted vs Scheduled Staff</option>
+            <option value="actVsForecastStaff">Actual vs Forecasted Staff</option>
+            <option value="actVsIdealStaff">Actual vs Ideal Staff</option>
+        </select>
+        <button onclick="openMaximizeModal(0)" class="p-1 hover:bg-slate-100 rounded text-slate-400">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+        </button>
+    </div>
+    <div class="relative h-[260px] w-full">
+        <canvas id="cardChart0"></canvas>
+    </div>
+</div>
+
+<div class="card p-5">
+    <div class="flex items-center justify-between mb-2">
+        <select onchange="updateCardGraph(1, this.value)" class="text-[13px] font-bold text-slate-700 bg-transparent outline-none cursor-pointer hover:text-indigo-600">
+            <option value="actVsProj">Actual vs Projected Hours</option>
+            <option value="actVsIdeal">Actual vs Ideal Hours</option>
+            <option value="projVsSch">Projected vs Scheduled Hours</option>
+        </select>
+        <button onclick="openMaximizeModal(1)" class="p-1 hover:bg-slate-100 rounded text-slate-400">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+        </button>
+    </div>
+    <div class="relative h-[260px] w-full">
+        <canvas id="cardChart1"></canvas>
+    </div>
+</div>
+
+<div class="card p-5">
+    <div class="flex items-center justify-between mb-2">
+        <select onchange="updateCardGraph(2, this.value)" class="text-[13px] font-bold text-slate-700 bg-transparent outline-none cursor-pointer hover:text-indigo-600">
+            <option value="rolesPerShift">Roles Scheduled per Standard Shift</option>
+            <option value="hoursPerShiftDept">Scheduled Hours Per Standard Shift</option>
+            <option value="weeklyLaborDist">Scheduled Labor Distribution for Week</option>
+        </select>
+        <button onclick="openMaximizeModal(2)" class="p-1 hover:bg-slate-100 rounded text-slate-400">
+            <i data-lucide="maximize-2" class="w-4 h-4"></i>
+        </button>
+    </div>
+    <div class="relative h-[260px] w-full">
+        <canvas id="cardChart2"></canvas>
+    </div>
+</div>
+
+</div>
+<!-- ================= LABOR HISTORICAL DATA TABLE ================= -->
+<div class="card p-5">
+
+    <div class="table-toolbar">
+        <div class="text-[15px] font-semibold text-slate-800">
+            Labor Historical Data
+        </div>
+
+        <div class="table-actions flex items-center gap-2">
+            <!-- Search Input (Hidden by default, shown on search click) -->
+            <div id="laborSearchContainer" class="hidden transition-all duration-300">
+                <input type="text" id="laborGlobalSearch" 
+                    onkeyup="searchLaborTable(this.value)"
+                    placeholder="Search table..." 
+                    class="border rounded-lg px-3 py-1 text-[12px] outline-none focus:ring-2 focus:ring-blue-500 w-48">
+            </div>
+
+            <button onclick="toggleLaborSearch()">
+                <i data-lucide="search" class="w-4 h-4"></i>
+            </button>
+
+            <button onclick="toggleLaborExportMenu(event)">
+                <i data-lucide="download" class="w-4 h-4"></i>
+            </button>
+
+            <button onclick="maximizeLaborTable()">
+                <i data-lucide="maximize-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Export Dropdown -->
+    <div id="laborExportMenu" class="hidden absolute bg-white border rounded-lg shadow-lg text-[12px] z-[9999] w-32 overflow-hidden">
+        <div onclick="exportLaborTable('csv')" class="px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> CSV
+        </div>
+        <div onclick="exportLaborTable('pdf')" class="px-3 py-2 hover:bg-slate-50 cursor-pointer flex items-center gap-2">
+            <i data-lucide="file" class="w-3.5 h-3.5"></i> PDF
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="labor-table" id="mainLaborTable">
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Store</th>
+                    <th>Projected Sales ($)</th>
+                    <th>Actual Sales ($)</th>
+                    <th>Actual Transactions</th>
+                    <th>Manager Adj. Txn</th>
+                    <th>Sched. Hours</th>
+                    <th>Unassigned</th>
+                </tr>
+            </thead>
+            <tbody id="laborHistoryBody"></tbody>
+        </table>
+    </div>
+
+</div>
+
+</div>
+</div>
+
+<!-- LABOR TABLE MAXIMIZE MODAL -->
+<div id="laborTableModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[9999]">
+    <div class="bg-white w-[1100px] max-w-[95vw] h-[85vh] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-slate-50">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-lg bg-blue-600 flex items-center justify-center text-white">
+                    <i data-lucide="table"></i>
+                </div>
+                <div>
+                    <h3 class="text-lg font-bold text-slate-800">Labor Historical Data Explorer</h3>
+                    <p class="text-xs text-slate-500 uppercase font-bold tracking-widest mt-0.5">Full Historical Archive</p>
+                </div>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <input type="text" onkeyup="searchLaborTable(this.value, 'modalLaborHistoryBody')" 
+                        placeholder="Filter results..." 
+                        class="border rounded-lg px-4 py-1.5 text-[13px] outline-none w-64 bg-white">
+                </div>
+                <button onclick="closeLaborTableModal()" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                    <i data-lucide="x" class="text-slate-400"></i>
+                </button>
+            </div>
+        </div>
+        <!-- Table Body -->
+        <div class="flex-1 overflow-auto p-6 bg-white">
+            <table class="labor-table w-full">
+                <thead class="sticky top-0 z-10">
+                    <tr>
+                        <th>Date</th>
+                        <th>Store</th>
+                        <th>Projected Sales ($)</th>
+                        <th>Actual Sales ($)</th>
+                        <th>Actual Transactions</th>
+                        <th>Manager Adj. Txn</th>
+                        <th>Sched. Hours</th>
+                        <th>Unassigned</th>
+                    </tr>
+                </thead>
+                <tbody id="modalLaborHistoryBody"></tbody>
+            </table>
+        </div>
+        <!-- Footer -->
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-between items-center">
+            <div id="laborStats" class="text-slate-500 text-[12px] font-medium">Showing 5 records</div>
+            <div class="flex gap-2">
+                <button onclick="exportLaborTable('csv')" class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border rounded-lg hover:bg-slate-50">Export CSV</button>
+                <button onclick="exportLaborTable('pdf')" class="px-4 py-2 text-xs font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Download PDF Report</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WEEKLY KPI STATS MODAL -->
+<div id="kpiStatsModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[9999]">
+    <div class="bg-white w-[1100px] max-w-[95vw] rounded-xl shadow-2xl overflow-hidden flex flex-col">
+        <!-- Header -->
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-white">
+            <div class="text-[18px] font-bold text-slate-800 flex items-center gap-2">
+                <i data-lucide="layout-list" class="w-5 h-5 text-blue-600"></i>
+                KPI's Statistics
+            </div>
+            <div class="flex items-center gap-3">
+                <button class="px-4 py-1.5 border rounded-lg text-[12px] font-bold flex items-center gap-2 hover:bg-slate-50">
+                    <i data-lucide="download" class="w-4 h-4"></i> Export
+                </button>
+                <button onclick="closeKpiStatsModal()" class="w-8 h-8 flex items-center justify-center text-slate-400 hover:bg-slate-100 rounded-full">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Table -->
+        <div class="p-6 overflow-x-auto">
+            <table class="w-full text-[13px] text-left border-collapse">
+                <thead>
+                    <tr class="bg-slate-50 text-slate-500 font-bold uppercase text-[11px] tracking-wider">
+                        <th class="px-4 py-3 border-b border-slate-100">KPI's</th>
+                        <th class="px-4 py-3 border-b border-slate-100">MON (02/16)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">TUE (02/17)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">WED (02/18)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">THU (02/19)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">FRI (02/20)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">SAT (02/21)</th>
+                        <th class="px-4 py-3 border-b border-slate-100">SUN (02/22)</th>
+                    </tr>
+                </thead>
+                <tbody class="text-slate-700">
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Transaction Per Scheduled Hours <span class="text-blue-600 font-medium">(5.75)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">6.01</td><td class="px-4 py-3 border-b border-slate-50">6.06</td><td class="px-4 py-3 border-b border-slate-50">6.09</td><td class="px-4 py-3 border-b border-slate-50">5.73</td><td class="px-4 py-3 border-b border-slate-50">6.34</td><td class="px-4 py-3 border-b border-slate-50">5.31</td><td class="px-4 py-3 border-b border-slate-50">4.88</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Transaction Per Crew Hours <span class="text-blue-600 font-medium">(6.10)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">6.32</td><td class="px-4 py-3 border-b border-slate-50">6.28</td><td class="px-4 py-3 border-b border-slate-50">6.35</td><td class="px-4 py-3 border-b border-slate-50">6.21</td><td class="px-4 py-3 border-b border-slate-50">6.89</td><td class="px-4 py-3 border-b border-slate-50">5.74</td><td class="px-4 py-3 border-b border-slate-50">5.06</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Transaction Per Manager Hours <span class="text-blue-600 font-medium">(102.12)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">123.90</td><td class="px-4 py-3 border-b border-slate-50">174.45</td><td class="px-4 py-3 border-b border-slate-50">146.82</td><td class="px-4 py-3 border-b border-slate-50">74.22</td><td class="px-4 py-3 border-b border-slate-50">79.19</td><td class="px-4 py-3 border-b border-slate-50">70.91</td><td class="px-4 py-3 border-b border-slate-50">140.67</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Sales Per Scheduled Hours <span class="text-blue-600 font-medium">(60.26)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">58.20</td><td class="px-4 py-3 border-b border-slate-50">62.16</td><td class="px-4 py-3 border-b border-slate-50">60.61</td><td class="px-4 py-3 border-b border-slate-50">60.45</td><td class="px-4 py-3 border-b border-slate-50">67.83</td><td class="px-4 py-3 border-b border-slate-50">58.84</td><td class="px-4 py-3 border-b border-slate-50">54.28</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Sales Per Crew Hours <span class="text-blue-600 font-medium">(63.86)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">61.17</td><td class="px-4 py-3 border-b border-slate-50">64.40</td><td class="px-4 py-3 border-b border-slate-50">63.23</td><td class="px-4 py-3 border-b border-slate-50">65.51</td><td class="px-4 py-3 border-b border-slate-50">73.72</td><td class="px-4 py-3 border-b border-slate-50">63.61</td><td class="px-4 py-3 border-b border-slate-50">56.24</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-50 font-bold">Sales Per Manager Hours <span class="text-blue-600 font-medium">(1,069.59)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-50">1,199.55</td><td class="px-4 py-3 border-b border-slate-50">1,788.29</td><td class="px-4 py-3 border-b border-slate-50">1,462.19</td><td class="px-4 py-3 border-b border-slate-50">783.01</td><td class="px-4 py-3 border-b border-slate-50">847.82</td><td class="px-4 py-3 border-b border-slate-50">785.14</td><td class="px-4 py-3 border-b border-slate-50">1,563.34</td>
+                    </tr>
+                    <tr class="hover:bg-slate-50/50">
+                        <td class="px-4 py-3 border-b border-slate-100 font-bold text-slate-900">Sandwich Count <span class="text-blue-600 font-medium">(15,110)</span></td>
+                        <td class="px-4 py-3 border-b border-slate-100">1,950</td><td class="px-4 py-3 border-b border-slate-100">2,105</td><td class="px-4 py-3 border-b border-slate-100">2,102</td><td class="px-4 py-3 border-b border-slate-100">2,260</td><td class="px-4 py-3 border-b border-slate-100">2,373</td><td class="px-4 py-3 border-b border-slate-100">2,242</td><td class="px-4 py-3 border-b border-slate-100">2,078</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Footer -->
+        <div class="px-6 py-4 bg-slate-50 border-t flex justify-center">
+            <button onclick="closeKpiStatsModal()" class="px-12 py-2 bg-blue-600 text-white rounded-lg font-bold shadow-lg hover:bg-blue-700 transition-all">OK</button>
+        </div>
+    </div>
+</div>
+
+<!-- GRAPH MAXIMIZE MODAL -->
+<div id="maximizeModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[9999]">
+    <div class="bg-white w-[900px] max-w-[95vw] rounded-2xl shadow-2xl overflow-hidden flex flex-col">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-slate-50">
+            <div class="flex items-center gap-4">
+                <div class="w-10 h-10 rounded-lg bg-indigo-600 flex items-center justify-center text-white">
+                    <i data-lucide="bar-chart-2"></i>
+                </div>
+                <div>
+                    <select id="modalGraphSelector" onchange="updateModalGraph(this.value)" class="text-lg font-bold text-slate-800 bg-transparent outline-none cursor-pointer">
+                        <!-- Options filled dynamically -->
+                    </select>
+                    <p class="text-xs text-slate-500 uppercase font-bold tracking-widest mt-0.5">Advanced Analytics View</p>
+                </div>
+            </div>
+            <button onclick="closeMaximizeModal()" class="p-2 hover:bg-slate-200 rounded-full transition-colors">
+                <i data-lucide="x" class="text-slate-400"></i>
+            </button>
+        </div>
+        <!-- Modal Content -->
+        <div class="p-8 h-[550px] relative">
+            <canvas id="maximizedCanvas"></canvas>
+        </div>
+        <!-- Modal Footer -->
+        <div class="px-6 py-4 border-t bg-slate-50 flex justify-between items-center">
+            <div class="flex items-center gap-2 text-slate-500 text-xs">
+                <i data-lucide="info" class="w-3 h-3"></i>
+                Data reflects current week-to-date performance
+            </div>
+            <div class="flex gap-2">
+                <button class="px-4 py-2 text-xs font-bold text-slate-600 bg-white border rounded-lg hover:bg-slate-50">Download PNG</button>
+                <button class="px-4 py-2 text-xs font-bold text-white bg-indigo-600 rounded-lg hover:bg-indigo-700">Export PDF</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- AI TREND POPUP -->
+<div id="trendModal"
+class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+
+<div class="bg-white w-[1100px] rounded-xl shadow-xl p-8 transition-none">
+
+<div class="flex justify-between items-center mb-6">
+<button onclick="closeTrendModal()" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+<i data-lucide="x"></i>
+</button>
+</div>
+
+<!-- SWITCH BUTTONS -->
+<div class="flex items-center justify-between mb-8">
+
+<div class="flex flex-col gap-1">
+<div id="trendMainTitle" class="text-[24px] font-bold text-slate-800"></div>
+<div id="trendSubTitle" class="text-[14px] text-slate-500 font-medium"></div>
+</div>
+
+<div class="flex gap-2 text-[13px]">
+
+<button onclick="switchTrend('bar')" id="btnBar"
+class="trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow-md">
+<i data-lucide="bar-chart-3" class="w-4 h-4"></i>Bar
+</button>
+
+<button onclick="switchTrend('pie')" id="btnPie"
+class="trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+<i data-lucide="pie-chart" class="w-4 h-4"></i>Pie
+</button>
+
+<button onclick="switchTrend('line')" id="btnLine"
+class="trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+<i data-lucide="trending-up" class="w-4 h-4"></i>Trend
+</button>
+
+<button onclick="switchTrend('table')" id="btnTable"
+class="trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors">
+<i data-lucide="table" class="w-4 h-4"></i>Table
+</button>
+
+<button onclick="switchTrend('insights')" id="btnInsights"
+class="trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium">
+<i data-lucide="lightbulb" class="w-4 h-4"></i>Insights
+</button>
+
+</div>
+
+</div>
+
+
+<div id="trendChartWrap" class="h-[480px] relative">
+<canvas id="trendChart"></canvas>
+</div>
+
+
+<div id="trendTable" class="hidden text-[14px] space-y-1"></div>
+
+<!-- AI INSIGHTS AREA -->
+<div id="trendInsights" class="hidden h-[480px] overflow-y-auto custom-scrollbar">
+</div>
+
+</div>
+</div>
+
+<!-- GENERIC KPI MODAL -->
+<div id="kpiModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+
+<div id="kpiModalBox"
+class="bg-white w-[760px] max-w-[90vw] h-[62vh] rounded-xl shadow-xl flex flex-col overflow-hidden">
+
+<!-- HEADER -->
+<div class="px-6 py-4 border-b flex items-center justify-between bg-white">
+
+<div>
+<div class="text-[18px] font-semibold text-slate-800 flex items-center gap-2">
+<i data-lucide="layout-list" class="w-5 h-5 text-blue-600"></i>
+<span id="kpiModalTitle">KPI Details</span>
+</div>
+<div id="kpiModalSub" class="text-[12px] text-slate-500">View detailed metrics for this category</div>
+</div>
+
+<div class="flex items-center gap-2">
+
+<div class="relative">
+<button onclick="toggleExportMenu()"
+class="px-3 py-1.5 border rounded-lg text-[12px] flex items-center gap-2 hover:bg-slate-50">
+<i data-lucide="download" class="w-4 h-4"></i>Export
+</button>
+
+<div id="exportMenu"
+class="hidden absolute right-0 mt-2 w-36 bg-white border rounded-lg shadow text-[12px] z-50">
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export PDF</div>
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export CSV</div>
+</div>
+</div>
+
+<button onclick="closeKpiModal()"
+class="w-8 h-8 rounded-full border border-red-300 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors">
+<i data-lucide="x" class="w-4 h-4"></i>
+</button>
+
+</div>
+
+</div>
+
+<!-- TABLE HEADER (DYNAMIC) -->
+<div id="kpiTableHeader"
+class="px-6 py-2 text-[11px] font-semibold text-slate-500 uppercase grid">
+</div>
+
+<div id="kpiSearchBox" class="hidden px-6 py-2 border-b bg-slate-50">
+<input id="kpiSearchInput"
+class="w-full border rounded-lg px-3 py-1.5 text-[12px] focus:ring-2 focus:ring-blue-500 outline-none"
+placeholder="Search...">
+</div>
+
+<!-- BODY -->
+<div id="kpiTableBody"
+class="flex-1 overflow-y-auto px-6 text-[13px] custom-scrollbar bg-white">
+</div>
+
+</div>
+</div>
+
+<div id="employeeCard"
+class="hidden fixed bg-white border rounded-xl shadow-xl p-4 w-[260px] text-[12px] z-[99999]">
+<div id="empCardName" class="font-semibold mb-2 text-blue-600 text-[13px]"></div>
+<div>DOB: 02/10/1992</div>
+<div>Position: Crew</div>
+<div>Phone: (555) 123-4567</div>
+<div>Email: example@email.com</div>
+<div>Home Store: Del Mar</div>
+</div>
+
+<!-- DOLLAR CHART MODAL -->
+<div id="dollarModal"
+class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+
+<div class="bg-white w-[760px] max-w-[90vw] h-[62vh] rounded-xl shadow-xl flex flex-col overflow-hidden">
+
+<!-- HEADER -->
+<div class="px-6 py-4 border-b flex items-center justify-between bg-white">
+<div>
+<div class="text-[18px] font-semibold text-slate-800 flex items-center gap-2">
+<i data-lucide="banknote" class="w-5 h-5 text-green-600"></i>
+<span id="dollarTitle">Dollar Analysis</span>
+</div>
+<div class="text-[12px] text-slate-500">Visual breakdown of scheduled cost</div>
+</div>
+
+<div class="flex items-center gap-2">
+<div class="relative">
+<button onclick="toggleExportMenu()" class="px-3 py-1.5 border rounded-lg text-[12px] flex items-center gap-2 hover:bg-slate-50">
+<i data-lucide="download" class="w-4 h-4"></i>Export
+</button>
+<div id="exportMenu" class="hidden absolute right-0 mt-2 w-36 bg-white border rounded-lg shadow text-[12px] z-50">
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export PDF</div>
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export CSV</div>
+</div>
+</div>
+<button onclick="closeDollarModal()" class="w-8 h-8 rounded-full border border-red-300 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors">
+<i data-lucide="x" class="w-4 h-4"></i>
+</button>
+</div>
+</div>
+
+<!-- CHART BODY -->
+<div class="flex-1 p-6 flex items-center justify-center bg-white">
+<canvas id="dollarChart"></canvas>
+</div>
+
+</div>
+</div>
+
+<!-- UPCOMING SHIFTS MODAL -->
+<div id="upcomingModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+<div class="bg-white w-[760px] max-w-[90vw] h-[62vh] rounded-xl shadow-xl flex flex-col overflow-hidden">
+<div class="px-6 py-4 border-b flex items-center justify-between bg-white">
+<div>
+<div class="text-[18px] font-semibold text-slate-800 flex items-center gap-2">
+<i data-lucide="calendar-days" class="w-5 h-5 text-blue-600"></i>
+9 Upcoming Shifts
+</div>
+<div class="text-[12px] text-slate-500">Next scheduled shifts for your store</div>
+</div>
+<div class="flex items-center gap-2">
+<div class="relative">
+<button onclick="toggleExportMenu()" class="px-3 py-1.5 border rounded-lg text-[12px] flex items-center gap-2 hover:bg-slate-50">
+<i data-lucide="download" class="w-4 h-4"></i>Export
+</button>
+<div id="exportMenu" class="hidden absolute right-0 mt-2 w-36 bg-white border rounded-lg shadow text-[12px] z-50">
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export PDF</div>
+<div class="px-3 py-2 hover:bg-slate-100 cursor-pointer">Export CSV</div>
+</div>
+</div>
+<button onclick="closeUpcomingModal()" class="w-8 h-8 rounded-full border border-red-300 text-red-500 flex items-center justify-center hover:bg-red-50 transition-colors">
+<i data-lucide="x" class="w-4 h-4"></i>
+</button>
+</div>
+</div>
+<div class="px-6 py-2 text-[11px] font-semibold text-slate-500 uppercase grid grid-cols-4 bg-slate-50 border-b border-slate-100">
+<div class="flex items-center gap-2">Employee<i onclick="toggleEmployeeSearch()" data-lucide="search" class="w-3 h-3 cursor-pointer"></i></div>
+<div onclick="sortTable(1)" class="cursor-pointer flex items-center gap-1">Shift Time <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
+<div onclick="sortTable(2)" class="cursor-pointer flex items-center gap-1">Breaks <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
+<div onclick="sortTable(3)" class="cursor-pointer flex items-center gap-1">Position <i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>
+</div>
+<div id="employeeSearchBox" class="hidden px-6 py-2 border-b bg-slate-50">
+<input id="employeeSearchInput" class="w-full border rounded-lg px-3 py-1.5 text-[12px] focus:ring-2 focus:ring-blue-500 outline-none" placeholder="Search employee name...">
+</div>
+<div id="upcomingTableBody" class="flex-1 overflow-y-auto px-6 text-[13px] custom-scrollbar bg-white">
+<!-- Filled dynamically in script -->
+</div>
+</div>
+</div>
+
+<!-- ASSIGN SHIFT MODAL (OFFER) -->
+<div id="assignModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-50">
+    <div class="bg-white w-[1000px] max-w-[95vw] h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
+        <!-- Modal Header -->
+        <div class="px-6 py-4 border-b flex items-center justify-between bg-white">
+            <h2 class="text-xl font-bold text-slate-800">Offer</h2>
+            <button onclick="closeAssignModal()" class="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                <i data-lucide="x" class="w-6 h-6 text-slate-400"></i>
+            </button>
+        </div>
+
+        <!-- Scrollable Body -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-6 modal-content bg-white" id="assignModalBody">
+            <!-- Recovered Assign Modal UI -->
+        </div>
+
+        <!-- Footer Actions -->
+        <div class="px-8 py-5 border-t bg-slate-50 flex justify-end gap-3">
+            <button class="px-6 py-2.5 bg-slate-200 text-slate-500 rounded-lg font-bold text-[13px] flex items-center gap-2 hover:bg-slate-300 transition">
+                <i data-lucide="zap" class="w-4 h-4"></i> Auto Offer
+            </button>
+            <button class="px-8 py-2.5 bg-indigo-600 text-white rounded-lg font-bold text-[13px] flex items-center gap-2 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition">
+                <i data-lucide="send" class="w-4 h-4"></i> Send Offer
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+// Declared Global Variables to prevent ReferenceError
+const chartDefinitions = [
+    { id: 'cardChart0', options: [ { id: 'forecastVsSchStaff', label: 'Forecasted vs Scheduled Staff', type: 'line' }, { id: 'actVsForecastStaff', label: 'Actual vs Forecasted Staff', type: 'bar' }, { id: 'actVsIdealStaff', label: 'Actual vs Ideal Staff', type: 'line' } ] },
+    { id: 'cardChart1', options: [ { id: 'actVsProj', label: 'Actual vs Projected Hours', type: 'bar' }, { id: 'actVsIdeal', label: 'Actual vs Ideal Hours', type: 'bar' }, { id: 'projVsSch', label: 'Projected vs Scheduled Hours', type: 'bar' } ] },
+    { id: 'cardChart2', options: [ { id: 'rolesPerShift', label: 'Roles Scheduled per Standard Shift', type: 'bar' }, { id: 'hoursPerShiftDept', label: 'Scheduled Hours Per Standard Shift', type: 'bar' }, { id: 'weeklyLaborDist', label: 'Scheduled Labor Distribution for Week', type: 'pie' } ] }
+];
+
+let trendChart = null;
+let miniInsightChart = null;
+let activeKPI = "efficiency";
+let dollarChartInstance = null;
+let activeChartInstances = [null, null, null];
+let maximizedChartInstance = null;
+let currentMaximizedIndex = -1;
+
+lucide.createIcons();
+
+// REGISTER DATALABELS PLUGIN
+Chart.register(ChartDataLabels);
+
+// Logic and Functions
+function toggleApps(){ const m = document.getElementById("appsMenu"); if(m) m.classList.toggle("hidden"); }
+function toggleStore(){ const m = document.getElementById("storeMenu"); if(m) m.classList.toggle("hidden"); }
+function toggleExportMenu(){ const menus = document.querySelectorAll("#exportMenu"); menus.forEach(m => m.classList.toggle("hidden")); }
+function toggleEmployeeSearch(){ const b = document.getElementById("employeeSearchBox"); if(b) b.classList.toggle("hidden"); }
+
+/* ===== LABOR TABLE FUNCTIONALITY ===== */
+
+function toggleLaborSearch() {
+    const container = document.getElementById('laborSearchContainer');
+    container.classList.toggle('hidden');
+    if (!container.classList.contains('hidden')) {
+        document.getElementById('laborGlobalSearch').focus();
+    }
+}
+
+function searchLaborTable(query, bodyId = 'laborHistoryBody') {
+    const body = document.getElementById(bodyId);
+    const rows = Array.from(body.getElementsByTagName('tr'));
+    const lowerQuery = query.toLowerCase();
+    
+    let count = 0;
+    rows.forEach(row => {
+        const text = row.innerText.toLowerCase();
+        if (text.includes(lowerQuery)) {
+            row.style.display = '';
+            count++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+
+    const stats = document.getElementById('laborStats');
+    if (stats) stats.innerText = `Showing ${count} records`;
+}
+
+function toggleLaborExportMenu(e) {
+    e.stopPropagation();
+    const menu = document.getElementById('laborExportMenu');
+    const btn = e.currentTarget;
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+    menu.style.left = (rect.left + window.scrollX - 90) + 'px';
+    menu.classList.toggle('hidden');
+}
+
+document.addEventListener('click', () => {
+    document.getElementById('laborExportMenu').classList.add('hidden');
+});
+
+function exportLaborTable(format) {
+    const modal = document.getElementById('laborTableModal');
+    const isModalOpen = !modal.classList.contains('hidden');
+    const tableId = isModalOpen ? 'modalLaborHistoryBody' : 'laborHistoryBody';
+    
+    // Minimal mock implementation
+    const rows = Array.from(document.getElementById(tableId).children);
+    const data = rows.filter(r => r.style.display !== 'none').map(r => 
+        Array.from(r.children).map(c => c.innerText.replace(/,/g, '')).join(',')
+    ).join('\n');
+    
+    if (format === 'csv') {
+        const blob = new Blob([data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Labor_History_${new Date().toLocaleDateString()}.csv`;
+        a.click();
+    } else {
+        alert("Preparing PDF Download... This will generate a formatted report based on " + rows.length + " visible records.");
+    }
+}
+
+function maximizeLaborTable() {
+    const modal = document.getElementById("laborTableModal");
+    const mainBody = document.getElementById("laborHistoryBody");
+    const modalBody = document.getElementById("modalLaborHistoryBody");
+    
+    modalBody.innerHTML = mainBody.innerHTML;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow = "hidden";
+    
+    document.getElementById('laborStats').innerText = `Showing ${mainBody.children.length} records`;
+    setTimeout(() => lucide.createIcons(), 20);
+}
+
+function closeLaborTableModal() {
+    const modal = document.getElementById("laborTableModal");
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = "";
+}
+
+/* ===== MODAL TRIGGERS ===== */
+
+function openUpcomingModal(){
+    const modal = document.getElementById("upcomingModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    
+    const body = document.getElementById("upcomingTableBody");
+    const employees = [
+        ["Christopher Brown", "Fri, Feb 6 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Shakerboard"],
+        ["Jenny Hangler", "Fri, Feb 6 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Kitchen"],
+        ["Henry Davis", "Sat, Feb 7 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Shakerboard"],
+        ["Sanjay Dang", "Sat, Feb 7 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Shakerboard"],
+        ["Bobby Hangler", "Mon, Feb 9 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Cook"],
+        ["Chris Wilson", "Wed, Feb 11 • 6:00a–2:00p", "10:00–10:30a (Meal)<br>12:15–12:30p (Rest)", "Crew"],
+        ["Margaret Smith", "Thu, Feb 12 • 9:00a–5:00p", "1:00–1:30p (Meal)", "Cashier"],
+        ["Joseph Miller", "Fri, Feb 13 • 10:00a–6:00p", "2:00–2:30p (Meal)", "Kitchen"],
+        ["Luis Martinez", "Fri, Feb 13 • 4:00p–10:00p", "--", "Crew"],
+        ["Ernesto Ruiz", "Sat, Feb 14 • 8:00a–4:00p", "12:00–12:30p (Meal)", "Manager"]
+    ];
+
+    body.innerHTML = employees.map(emp => `
+        <div class="grid grid-cols-4 items-center py-3 border-t">
+            <div class="flex items-center gap-3">
+                <img src="https://i.pravatar.cc/40?u=${emp[0]}" class="w-9 h-9 rounded-full">
+                <div onclick="openEmployeeCard(event,this)" class="font-medium text-blue-600 cursor-pointer hover:underline text-[13px]">${emp[0]}</div>
+            </div>
+            <div class="text-slate-600">${emp[1]}</div>
+            <div class="text-slate-500 text-[12px]">${emp[2]}</div>
+            <div><span class="px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-[11px] font-semibold">${emp[3]}</span></div>
+        </div>
+    `).join('');
+
+    document.body.style.overflow = "hidden";
+    setTimeout(()=>{lucide.createIcons();},20);
+}
+
+function closeUpcomingModal(){
+    const modal = document.getElementById("upcomingModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = ""; 
+}
+
+function openKpiModal(type){
+    const modal=document.getElementById("kpiModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow="hidden";
+    const header=document.getElementById("kpiTableHeader");
+    const body=document.getElementById("kpiTableBody");
+    let cols=[];
+    let rows="";
+    if(type==="currentlyIn"){
+        document.getElementById("kpiModalTitle").innerText="Currently In Employees";
+        cols=["Employee","Clocked In","Scheduled End","Position"];
+        rows+=buildRow("Christopher Brown","8:00a","2:00p","Crew");
+        rows+=buildRow("Jenny Hangler","9:00a","5:00p","Kitchen");
+    } else if(type==="todayHours"){
+        document.getElementById("kpiModalTitle").innerText="Today's Scheduled Employees";
+        cols=["Employee","Shift","Clocked In","Status","Position"];
+        rows+=buildRow("Christopher Brown","6a-2p","6:01a","In Shift","Crew");
+        rows+=buildRow("Jenny Hangler","10a-6p","--","Upcoming","Kitchen");
+    } else if(type==="weeklyHours"){
+        document.getElementById("kpiModalTitle").innerText="Weekly Hours";
+        cols=["Day","Scheduled","Actual","Variance"];
+        rows+=buildRow("Mon","14h","12h","+2h");
+        rows+=buildRow("Tue","16h","15h","+1h");
+    } else if(type==="todayOT"){
+        document.getElementById("kpiModalTitle").innerText="Today's Overtime";
+        cols=["Employee","Scheduled","Actual","OT","Position"];
+        rows+=buildRow("Christopher Brown","6a-2p","6a-3p","1h","Crew");
+        rows+=buildRow("Jenny Hangler","9a-5p","9a-6p","1h","Kitchen");
+    } else if(type==="weeklyOT"){
+        document.getElementById("kpiModalTitle").innerText="Weekly Overtime";
+        cols=["Date","Scheduled OT","Actual OT","Variance"];
+        rows+=buildRow("Mon","1h","2h","+1h");
+        rows+=buildRow("Tue","0h","1h","+1h");
+    } else if(type==="todayStaff"){
+        document.getElementById("kpiModalTitle").innerText="Today's Staff";
+        cols=["Employee","Position","Shift","Status"];
+        rows+=buildRow("Christopher Brown","Crew","6a-2p","In Shift");
+        rows+=buildRow("Jenny Hangler","Kitchen","10a-6p","Upcoming");
+    } else if(type==="weeklyStaff"){
+        document.getElementById("kpiModalTitle").innerText="Weekly Staff Summary";
+        cols=["Day","Staff Count","Scheduled Hours"];
+        rows+=buildRow("Mon","8","42h");
+        rows+=buildRow("Tue","9","48h");
+    }
+    header.className="px-6 py-2 text-[11px] font-semibold text-slate-500 uppercase grid grid-cols-"+cols.length;
+    header.innerHTML=cols.map((c,i)=>`<div onclick="sortGeneric(${i})" class="cursor-pointer flex items-center gap-1">${c}<i data-lucide="arrow-up-down" class="w-3 h-3"></i></div>`).join("");
+    body.innerHTML=rows;
+    setTimeout(()=>{lucide.createIcons();},20);
+}
+
+function closeKpiModal(){
+    const modal=document.getElementById("kpiModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow="";
+}
+
+function openDollarModal(type){
+    const modal = document.getElementById("dollarModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow="hidden";
+    const ctx=document.getElementById("dollarChart").getContext("2d");
+    if(dollarChartInstance && typeof dollarChartInstance.destroy === 'function') dollarChartInstance.destroy();
+    document.getElementById("dollarTitle").innerText=type==="todayDollar"?"Today's Scheduled $":"Weekly Scheduled $";
+    dollarChartInstance=new Chart(ctx,{
+        type:type==="todayDollar"?"line":"bar",
+        data:{
+            labels:type==="todayDollar"?["8a","10a","12p","2p","4p","6p"]:["Mon","Tue","Wed","Thu","Fri","Sat","Sun"],
+            datasets:[{
+                data:type==="todayDollar"?[50,80,120,90,60,40]:[300,350,320,380,410,450,390],
+                backgroundColor: "#3b82f6", borderColor: "#3b82f6", borderWidth: 2, fill: true, tension: 0.4
+            }]
+        },
+        options:{ responsive:true, maintainAspectRatio:false, plugins: { legend: { display: false }, datalabels: { display: false } } }
+    });
+}
+
+function closeDollarModal(){
+    const modal = document.getElementById("dollarModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow=""; 
+}
+
+function openAssignModal(shiftId, filterDept, filterPos){
+    const modal = document.getElementById("assignModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    
+    document.getElementById("assignModalBody").innerHTML = `
+        <div class="space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Unassigned Shifts</span>
+                    <div class="flex gap-2">
+                        <select id="assignDeptFilter" class="border rounded-lg px-3 py-1.5 text-[13px] bg-white outline-none">
+                            <option value="">Department</option>
+                            <option value="Kitchen" ${filterDept === 'Kitchen' ? 'selected' : ''}>Kitchen</option>
+                            <option value="Front" ${filterDept === 'Front' ? 'selected' : ''}>Front</option>
+                        </select>
+                        <select id="assignPosFilter" class="border rounded-lg px-3 py-1.5 text-[13px] bg-white outline-none">
+                            <option value="">Position</option>
+                            <option value="Line Cook" ${filterPos === 'Line Cook' ? 'selected' : ''}>Line Cook</option>
+                            <option value="Cashier" ${filterPos === 'Cashier' ? 'selected' : ''}>Cashier</option>
+                            <option value="Prep Cook" ${filterPos === 'Prep Cook' ? 'selected' : ''}>Prep Cook</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold text-slate-500 uppercase">Select All Shifts</span>
+                    <input type="checkbox" id="selectAllShifts" class="w-4 h-4">
+                </div>
+            </div>
+            
+            <div class="grid grid-cols-7 gap-3" id="assignShiftGrid">
+                ${['Sun 14', 'Mon 15', 'Tue 16', 'Wed 17', 'Thu 18', 'Fri 19', 'Sat 20'].map((day, idx) => {
+                    const isActive = (filterDept === 'Kitchen' && idx === 1) || (filterDept === 'Front' && idx === 2);
+                    return `
+                    <div class="space-y-2">
+                        <div class="text-center text-[10px] font-bold text-slate-400 uppercase">${day}</div>
+                        <div class="bg-blue-50 border-2 ${isActive ? 'border-blue-500 shadow-md' : 'border-blue-400'} rounded-lg p-2.5 relative cursor-pointer group hover:border-blue-600 transition-all">
+                            <div class="text-[10px] font-bold text-slate-700">8:00A - 4:00P</div>
+                            <div class="text-[10px] font-black text-blue-600 uppercase mt-1">Crew</div>
+                            <i data-lucide="coffee" class="w-3 h-3 text-red-500 absolute top-2 right-2"></i>
+                        </div>
+                    </div>`;
+                }).join('')}
+            </div>
+
+            <div class="pt-6 border-t space-y-4">
+                <div class="flex items-center justify-between">
+                    <div class="flex p-1 bg-slate-100 rounded-lg">
+                        <button class="px-5 py-2 bg-indigo-600 text-white rounded-md text-[13px] font-bold shadow-sm">Eligible</button>
+                        <button class="px-5 py-2 text-slate-500 text-[13px] font-bold hover:text-slate-700 transition">Others</button>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <select class="border rounded-lg px-3 py-1.5 text-[12px] bg-white text-slate-600 outline-none"><option>Sort By: Pay Rate</option></select>
+                        <div class="flex items-center gap-2 border rounded-lg px-3 py-1 bg-white">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase">Max Pay ($)</span>
+                            <input type="text" class="w-10 text-[13px] text-slate-700 outline-none" value="0.00">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-4 gap-4">
+                    ${['Margaret Davis', 'Joseph Smith', 'Charles Wilson', 'Christopher Mo...', 'Susan Anderson', 'Emily Clark', 'William Brown', 'Linda Jones'].map(name => `
+                    <div class="border border-slate-200 rounded-xl p-4 bg-white hover:border-indigo-300 hover:shadow-md transition-all group">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-center gap-3">
+                                <div class="w-10 h-10 rounded-lg bg-blue-600 text-white flex items-center justify-center font-bold text-sm">${name.split(' ').map(n=>n[0]).join('')}</div>
+                                <div>
+                                    <h4 class="text-[13px] font-bold text-slate-800">${name}</h4>
+                                    <p class="text-[11px] font-bold text-slate-400 uppercase">Crew</p>
+                                </div>
+                            </div>
+                            <input type="checkbox" class="w-4 h-4 rounded border-slate-300">
+                        </div>
+                    </div>`).join('')}
+                </div>
+            </div>
+        </div>`;
+
+    document.body.style.overflow = "hidden";
+    setTimeout(() => { lucide.createIcons(); }, 10);
+}
+
+function closeAssignModal(){
+    const modal = document.getElementById("assignModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = "";
+}
+
+/* ===== CALENDAR LOGIC ===== */
+
+function handleDateSelect(dateStr) {
+    if (!dateStr) return;
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    const diffToMon = date.getDate() - day + (day === 0 ? -6 : 1);
+    const monday = new Date(date.setDate(diffToMon));
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    const formatDate = (d) => {
+        return (d.getMonth() + 1).toString().padStart(2, '0') + '/' + d.getDate().toString().padStart(2, '0') + '/' + d.getFullYear();
+    };
+    document.getElementById("weekDisplay").innerText = `Week: ${formatDate(monday)} - ${formatDate(sunday)}`;
+}
+
+function openKpiStatsModal() {
+    const modal = document.getElementById("kpiStatsModal");
+    if(!modal) return;
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    document.body.style.overflow = "hidden";
+    setTimeout(() => lucide.createIcons(), 20);
+}
+
+function closeKpiStatsModal() {
+    const modal = document.getElementById("kpiStatsModal");
+    if(!modal) return;
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+    document.body.style.overflow = "";
+}
+
+/* ===== TRENDS & INSIGHTS ===== */
+
+function openTrendModal(type){
+    activeKPI = type;
+    const meta={
+        efficiency:{ title:"Labor Efficiency", sub:"Current period comparison" },
+        labor:{ title:"Labor Cost %", sub:"Current period comparison" },
+        otRisk:{ title:"Overtime Risk", sub:"Current employees at risk" },
+        compliance:{ title:"KPI Compliance", sub:"Adherence to standards" },
+        adherence:{ title:"Schedule Adherence", sub:"Clock-in precision" }
+    };
+    document.getElementById("trendMainTitle").innerText = meta[type].title;
+    document.getElementById("trendSubTitle").innerText = meta[type].sub;
+    const modal = document.getElementById("trendModal");
+    if(!modal) return;
+	/* RESET OLD INSIGHTS (CRITICAL FIX) */
+document.getElementById("trendInsights").innerHTML = "";
+if(miniInsightChart){
+    miniInsightChart.destroy();
+    miniInsightChart = null;
+}
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+    switchTrend("bar");
+    setTimeout(()=>{lucide.createIcons();},50);
+}
+
+function closeTrendModal(){
+    const modal = document.getElementById("trendModal");
+    if(!modal) return;
+
+    // destroy all charts safely
+    if(trendChart){
+        trendChart.destroy();
+        trendChart = null;
+    }
+
+    if(miniInsightChart){
+        miniInsightChart.destroy();
+        miniInsightChart = null;
+    }
+
+    document.getElementById("trendInsights").innerHTML = "";
+
+    modal.classList.add("hidden");
+    modal.classList.remove("flex");
+}
+
+function switchTrend(type){
+    const buttons = {
+        bar: document.getElementById('btnBar'),
+        pie: document.getElementById('btnPie'),
+        line: document.getElementById('btnLine'),
+        table: document.getElementById('btnTable'),
+        insights: document.getElementById('btnInsights')
+    };
+    Object.values(buttons).forEach(btn => {
+        if (!btn) return;
+        btn.className = "trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 transition-colors font-medium";
+    });
+    const activeBtn = buttons[type];
+    if (activeBtn) {
+        activeBtn.className = "trendBtn flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white font-semibold shadow-md border border-blue-600 transition-all";
+    }
+	// IMPORTANT: destroy main chart when leaving chart views
+if(type === "insights" || type === "table"){
+    if(trendChart){
+        trendChart.destroy();
+        trendChart = null;
+    }
+}
+    
+    document.getElementById("trendChartWrap").style.display = (type==="table" || type==="insights") ? "none":"block";
+    document.getElementById("trendTable").classList.toggle("hidden", type!=="table");
+    document.getElementById("trendInsights").classList.toggle("hidden", type!=="insights");
+
+    if(type==="insights"){
+    setTimeout(() => {
+        renderInsights();
+    }, 50);
+} else if (type === "table") {
+        renderTrendTable();
+    } else {
+        renderTrendChart(type);
+    }
+}
+
+function renderTrendChart(view){
+    const ctx = document.getElementById("trendChart");
+    if(trendChart) trendChart.destroy();
+    const chartMeta = {
+        efficiency:{ labels:["Current", "LW", "LY"], data:[94.2, 82.2, 88.5] },
+        labor:{ labels:["Current", "LW", "LY"], data:[18, 20.4, 19.8] },
+        otRisk:{ labels:["Current", "LW", "LY"], data:[4, 6, 2] },
+        compliance:{ labels:["Current", "LW", "LY"], data:[96.5, 96.0, 95.8] },
+        adherence:{ labels:["Current", "LW", "LY"], data:[98.5, 96.2, 94.8] }
+    };
+    const labels = chartMeta[activeKPI].labels;
+    const values = chartMeta[activeKPI].data;
+    const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4"];
+
+    trendChart = new Chart(ctx, {
+        type: view === "pie" ? "pie" : (view === "bar" ? "bar" : "line"),
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Value",
+                data: values,
+                borderRadius: 10,
+                backgroundColor: (view === "pie" || view === "bar") ? colors : "rgba(59,130,246,0.1)",
+                borderColor: "#3b82f6",
+                fill: view === "line",
+                tension: 0.45
+            }]
+        },
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            plugins: {
+                datalabels: { display: view === "pie" || view === "bar", color: '#fff' }
+            }
+        }
+    });
+}
+
+function renderTrendTable() {
+    const labels = ["Current", "LW", "LY"];
+    const chartMeta = {
+        efficiency: [94.2, 82.2, 88.5],
+        labor: [18, 20.4, 19.8],
+        otRisk: [4, 6, 2],
+        compliance: [96.5, 96.0, 95.8],
+        adherence: [98.5, 96.2, 94.8]
+    };
+    const values = chartMeta[activeKPI];
+    let tableHTML = "";
+    labels.forEach((t,i)=>{
+        tableHTML += `<div class="flex justify-between border-b border-slate-50 py-3 px-2 hover:bg-slate-50 transition"><span class="text-slate-600 font-medium text-[13px]">${t}</span><span class="font-bold text-slate-800 text-[13px]">${values[i]}${activeKPI === 'efficiency' || activeKPI === 'labor' || activeKPI === 'adherence' || activeKPI === 'compliance' ? '%' : ''}</span></div>`;
+    });
+    document.getElementById("trendTable").innerHTML = tableHTML;
+}
+/* ===== KPI RECOMMENDED ACTION ENGINE ===== */
+
+const kpiActions = {
+
+efficiency: [
+"Stagger clock-in times between 1:45 PM – 3:30 PM to prevent shift handoff drop.",
+"Move one senior crew to afternoon peak window.",
+"Reduce late-night staffing by 1 employee on weekdays.",
+"Use top-performing shift pattern as template for next schedule."
+],
+
+labor: [
+"Add one floor support during peak sales windows.",
+"Replace 1 senior shift with trainee shift mid-week.",
+"Maintain current schedule — labor below target range.",
+"Reallocate 3–4 weekly hours to weekend coverage."
+],
+
+otRisk: [
+"Remove Saturday double shift for at-risk employee.",
+"Offer shift to part-time crew to avoid overtime premium.",
+"Split 8+ hour shift into two 4-hour segments.",
+"Swap closing shift with under-hour employee."
+],
+
+compliance: [
+"Adjust meal break reminder to 30 minutes before deadline.",
+"Move kitchen break coverage earlier by 15 minutes.",
+"Review minor labor rule acknowledgement with shift leads.",
+"Enable break alerts for managers."
+],
+
+adherence: [
+"Coach employee with recurring late arrivals.",
+"Send pre-shift reminder notifications 30 minutes before start.",
+"Schedule frequent late employee 15 minutes later start time.",
+"Reward top on-time employees with preferred shifts."
+]
+
+};
+
+function renderInsights(){
+
+const container = document.getElementById("trendInsights");
+
+const insightEngine = {
+
+efficiency:[
+{
+severity:"warning",
+title:"Shift Transition Efficiency Drop",
+analysis:"Efficiency falls during 2PM–4PM due to overlapping clock-outs and late clock-ins.",
+action:"Stagger employee start times by 15 minutes and assign one float position during transition."
+},
+{
+severity:"success",
+title:"Top District Performance",
+analysis:"Store efficiency is higher than district average indicating strong deployment discipline.",
+action:"Capture this week’s schedule template and reuse for next week's forecast."
+}
+],
+
+labor:[
+{
+severity:"success",
+title:"Labor Cost Under Target",
+analysis:"Labor cost is running 2% below target meaning available labor capacity exists.",
+action:"Add floor support during peak lunch to improve speed of service and upselling."
+},
+{
+severity:"info",
+title:"Wage Mix Imbalance",
+analysis:"Higher wage senior staff scheduled during slow periods.",
+action:"Move senior staff to peak hours and assign trainees to low-traffic windows."
+}
+],
+
+otRisk:[
+{
+severity:"critical",
+title:"Overtime Trigger Detected",
+analysis:"One employee projected to cross 40 hours before week end.",
+action:"Reassign Saturday shift to part-time employee or split shift coverage."
+},
+{
+severity:"warning",
+title:"Stacked Long Shifts",
+analysis:"Back-to-back long shifts are scheduled for same employee group.",
+action:"Break long shift into two shorter coverage blocks."
+}
+],
+
+compliance:[
+{
+severity:"warning",
+title:"Meal Break Timing",
+analysis:"Kitchen meal breaks occurring later than policy window.",
+action:"Schedule mandatory break reminder at 4.5 hour mark."
+},
+{
+severity:"success",
+title:"No Minor Violations",
+analysis:"All labor law checks passed this week.",
+action:"Maintain current break scheduling pattern."
+}
+],
+
+adherence:[
+{
+severity:"success",
+title:"Excellent Clock-In Accuracy",
+analysis:"Employees clocking within ±3 minutes of schedule.",
+action:"No action required. Maintain scheduling consistency."
+},
+{
+severity:"info",
+title:"Recurring Late Arrival",
+analysis:"One employee repeatedly clocks in late mid-week.",
+action:"Adjust their shift start 5 minutes later or provide reminder alert."
+}
+]
+
+};
+
+const current = insightEngine[activeKPI];
+
+const colorMap = {
+success:"emerald",
+warning:"amber",
+critical:"red",
+info:"blue"
+};
+
+container.innerHTML = `
+<div class="p-2 space-y-4">
+
+<div class="h-[220px]">
+<canvas id="miniInsightChart"></canvas>
+</div>
+
+${current.map(item=>`
+<div class="border rounded-xl p-4 shadow-sm hover:shadow-md transition">
+
+<div class="flex items-center gap-3 mb-2">
+<span class="px-2 py-1 text-xs font-bold rounded-full bg-${colorMap[item.severity]}-100 text-${colorMap[item.severity]}-700 uppercase">
+${item.severity}
+</span>
+
+<h4 class="font-semibold text-slate-800 text-[15px]">
+${item.title}
+</h4>
+</div>
+
+<p class="text-slate-600 text-[13px] leading-relaxed mb-3">
+${item.analysis}
+</p>
+
+<div class="bg-slate-50 border rounded-lg p-3">
+<div class="text-[11px] font-bold text-slate-500 uppercase mb-1">
+Recommended Action
+</div>
+<div class="text-[13px] font-medium text-slate-800">
+${item.action}
+</div>
+</div>
+
+</div>
+`).join("")}
+
+</div>
+`;
+
+setTimeout(()=>{
+renderMiniInsightChart();
+lucide.createIcons();
+},220);
+}
+
+function renderMiniInsightChart() {
+
+    const canvas = document.getElementById("miniInsightChart");
+
+    // canvas not ready yet → try again next frame
+    if (!canvas) {
+        requestAnimationFrame(renderMiniInsightChart);
+        return;
+    }
+
+    const ctx = canvas.getContext("2d");
+
+    // still not ready → retry
+    if (!ctx) {
+        requestAnimationFrame(renderMiniInsightChart);
+        return;
+    }
+
+    // destroy previous instance safely
+    if (miniInsightChart) {
+        miniInsightChart.destroy();
+        miniInsightChart = null;
+    }
+
+    miniInsightChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: ["M", "T", "W", "T", "F", "S"],
+            datasets: [{
+                label: "Operational Trend",
+                data: [12, 18, 22, 14, 20, 15],
+                backgroundColor: "#6366f1",
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: {
+                duration: 600
+            },
+            plugins: {
+                legend: { display: false },
+                datalabels: { display: false }
+            },
+            scales: {
+                x: { grid: { display: false } },
+                y: { grid: { color: "#f1f5f9" }, beginAtZero: true }
+            }
+        }
+    });
+}
+
+function getChartData(key) {
+    const dateLabels = ["02/16/2026", "02/17/2026", "02/18/2026", "02/19/2026", "02/20/2026", "02/21/2026", "02/22/2026"];
+    const dataMap = {
+        forecastVsSchStaff: { labels: dateLabels, datasets: [ { label: "Forecast", data: [15, 16, 15, 14, 18, 22, 20], borderColor: "#6366f1", borderDash: [5,5], fill: false }, { label: "Scheduled", data: [14, 15, 14, 15, 18, 20, 19], borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.1)", fill: true } ] },
+        actVsForecastStaff: { labels: dateLabels, datasets: [ { label: "Actual", data: [12, 14, 15, 13, 18, 22, 19], backgroundColor: "#6366f1" }, { label: "Forecast", data: [11, 15, 14, 14, 17, 20, 20], backgroundColor: "#94a3b8" } ] },
+        actVsIdealStaff: { labels: dateLabels, datasets: [ { label: "Actual", data: [10, 12, 11, 10, 14, 18, 16], borderColor: "#2563eb", fill: false }, { label: "Ideal", data: [11, 11, 11, 11, 15, 17, 17], borderColor: "#f59e0b", fill: false } ] },
+        actVsProj: { labels: dateLabels, datasets: [ { label: "Actual", data: [5, 14, 11, 10, 13, 8, 5], backgroundColor: "#2563eb" }, { label: "Projected", data: [12, 9, 2, 2, 16, 7, 3], backgroundColor: "#10b981" } ] },
+        actVsIdeal: { labels: dateLabels, datasets: [ { label: "Actual", data: [8, 12, 5, 10, 10, 5, 2], backgroundColor: "#2563eb" }, { label: "Ideal", data: [10, 10, 8, 5, 12, 0, 5], backgroundColor: "#10b981" } ] },
+        projVsSch: { labels: dateLabels, datasets: [ { label: "Projected", data: [15, 18, 12, 8, 20, 5, 10], backgroundColor: "#2563eb" }, { label: "Scheduled", data: [14, 16, 10, 10, 18, 2, 12], backgroundColor: "#10b981" } ] },
+        rolesPerShift: { labels: ["8A-2P", "2P-8P", "8P-2A", "2A-8A", "Other"], datasets: [ { label: "Kitchen", data: [5, 8, 4, 2, 1], backgroundColor: "#6366f1" }, { label: "Front", data: [4, 6, 7, 1, 2], backgroundColor: "#14b8a6" }, { label: "Manager", data: [1, 1, 1, 1, 1], backgroundColor: "#8b5cf6" } ] },
+        hoursPerShiftDept: { labels: ["8A-2P", "2P-8P", "8P-2A", "2A-8A", "Other"], datasets: [ { label: "Dept A", data: [30, 45, 20, 10, 5], backgroundColor: "#3b82f6" }, { label: "Dept B", data: [25, 40, 25, 15, 8], backgroundColor: "#fbbf24" } ] },
+        weeklyLaborDist: { labels: ["Kitchen", "Front", "Management", "Maintenance"], datasets: [{ data: [45, 35, 15, 5], backgroundColor: ["#6366f1", "#14b8a6", "#8b5cf6", "#f43f5e"] }] }
+    };
+    return dataMap[key];
+}
+
+function updateCardGraph(index, key) {
+    const config = chartDefinitions[index];
+    const option = config.options.find(o => o.id === key);
+    const canvasId = `cardChart${index}`;
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    if (activeChartInstances[index]) activeChartInstances[index].destroy();
+    const isStacked = (key === 'rolesPerShift' || key === 'hoursPerShiftDept');
+    activeChartInstances[index] = new Chart(ctx, {
+        type: option.type,
+        data: getChartData(key),
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { 
+                legend: { display: option.type !== 'pie', position: 'top', align: 'end', labels: { usePointStyle: true, boxWidth: 6, font: { size: 10 } } },
+                datalabels: { display: false } 
+            },
+            scales: option.type === 'pie' ? {} : { 
+                x: { stacked: isStacked, grid: { display: false }, ticks: { font: { size: 9 } } }, 
+                y: { stacked: isStacked, beginAtZero: true, grid: { color: "#f1f5f9" }, ticks: { font: { size: 9 } } } 
+            }
+        }
+    });
+}
+
+function openMaximizeModal(index) {
+    currentMaximizedIndex = index;
+    const config = chartDefinitions[index];
+    const cardSelect = document.querySelectorAll('.card select')[index];
+    const currentVal = cardSelect.value;
+    document.getElementById('modalGraphSelector').innerHTML = config.options.map(o => `<option value="${o.id}" ${o.id === currentVal ? 'selected' : ''}>${o.label}</option>`).join('');
+    document.getElementById('maximizeModal').classList.remove('hidden');
+    document.getElementById('maximizeModal').classList.add('flex');
+    document.body.style.overflow = 'hidden';
+    updateModalGraph(currentVal);
+    setTimeout(() => lucide.createIcons(), 20);
+}
+
+function updateModalGraph(key) {
+    const config = chartDefinitions[currentMaximizedIndex];
+    const option = config.options.find(o => o.id === key);
+    const ctx = document.getElementById('maximizedCanvas').getContext('2d');
+    if (maximizedChartInstance) maximizedChartInstance.destroy();
+    const isStacked = (key === 'rolesPerShift' || key === 'hoursPerShiftDept');
+    maximizedChartInstance = new Chart(ctx, {
+        type: option.type,
+        data: getChartData(key),
+        options: {
+            responsive: true, maintainAspectRatio: false, layout: { padding: 20 },
+            plugins: { legend: { display: option.type !== 'pie', labels: { font: { size: 12, weight: 'bold' } } }, datalabels: { display: false } },
+            scales: option.type === 'pie' ? {} : { x: { stacked: isStacked, ticks: { font: { size: 11, weight: 'bold' } } }, y: { stacked: isStacked, beginAtZero: true, grid: { color: "#f1f5f9" } } }
+        }
+    });
+}
+
+function closeMaximizeModal(){ document.getElementById('maximizeModal').classList.add('hidden'); document.getElementById('maximizeModal').classList.remove('flex'); document.body.style.overflow = ''; }
+
+function buildRow(...cells){
+    let rowHTML = "";
+    cells.forEach((c,i)=>{
+        if(i===0 && typeof c==="string" && c.includes(" ")){ 
+            rowHTML += `<div class="flex items-center gap-3"><img src="https://i.pravatar.cc/40?u=${c}" class="w-9 h-9 rounded-full"><div onclick="openEmployeeCard(event,this)" class="font-medium text-blue-600 cursor-pointer hover:underline text-[13px]">${c}</div></div>`;
+        } else if(c==="Crew" || c==="Kitchen" || c==="Cook" || c==="Manager" || c==="Shakerboard"){
+            rowHTML+=`<div><span class="px-3 py-1 rounded-full bg-blue-100 text-blue-600 text-[11px] font-semibold">${c}</span></div>`;
+        } else {
+            rowHTML+=`<div class="text-slate-700 text-[13px]">${c}</div>`;
+        }
+    });
+    return `<div class="grid border-t py-3 items-center" style="grid-template-columns:repeat(${cells.length},minmax(0,1fr))">${rowHTML}</div>`;
+}
+
+function openEmployeeCard(e,el){
+    const card=document.getElementById("employeeCard");
+    card.style.left=e.pageX+"px";
+    card.style.top=e.pageY+"px";
+    document.getElementById("empCardName").innerText=el.innerText;
+    card.classList.remove("hidden");
+}
+
+let sortGenericState = { col: -1, dir: 'asc' };
+function sortGeneric(colIndex) {
+    const body = document.getElementById("kpiTableBody");
+    if(!body) return;
+    const rows = Array.from(body.children);
+    if (sortGenericState.col === colIndex) { sortGenericState.dir = sortGenericState.dir === 'asc' ? 'desc' : 'asc'; } else { sortGenericState.col = colIndex; sortGenericState.dir = 'asc'; }
+    rows.sort((a, b) => {
+        const aVal = a.children[colIndex].innerText.trim().toLowerCase();
+        const bVal = b.children[colIndex].innerText.trim().toLowerCase();
+        const aNum = parseFloat(aVal.replace(/[^0-9.-]/g, ""));
+        const bNum = parseFloat(bVal.replace(/[^0-9.-]/g, ""));
+        if (!isNaN(aNum) && !isNaN(bNum)) { return sortGenericState.dir === 'asc' ? aNum - bNum : bNum - aNum; }
+        return sortGenericState.dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+    });
+    body.innerHTML = "";
+    rows.forEach(row => body.appendChild(row));
+}
+
+function loadLaborHistory(){
+    // Realistic historical records
+    const rows = [
+        ["02/15/2026", "085 - Del Mar", 82500, 81450, 4210, 4180, 1420, 2],
+        ["02/14/2026", "085 - Del Mar", 91200, 94100, 5020, 4980, 1550, 0],
+        ["02/13/2026", "085 - Del Mar", 75000, 74200, 3850, 3810, 1310, 1],
+        ["02/12/2026", "085 - Del Mar", 68000, 69100, 3210, 3250, 1180, 4],
+        ["02/11/2026", "085 - Del Mar", 70500, 70200, 3340, 3340, 1210, 0]
+    ];
+
+    const body = document.getElementById("laborHistoryBody");
+    body.innerHTML = rows.map(r => {
+        const variance = ((r[3] - r[2]) / r[2] * 100).toFixed(1);
+        const color = variance >= 0 ? 'text-green-600' : 'text-red-600';
+        return `
+            <tr>
+                <td class="labor-date font-bold">${r[0]}</td>
+                <td class="text-slate-500">${r[1]}</td>
+                <td class="font-medium">$${r[2].toLocaleString()}</td>
+                <td>
+                    <div class="font-bold">$${r[3].toLocaleString()}</div>
+                    <div class="${color} text-[10px] font-bold">${variance >= 0 ? '+' : ''}${variance}% vs Proj.</div>
+                </td>
+                <td class="font-medium">${r[4].toLocaleString()}</td>
+                <td class="text-slate-600 italic">${r[5].toLocaleString()}</td>
+                <td class="font-bold text-blue-600">${r[6]}h</td>
+                <td>
+                    <span class="px-2 py-0.5 rounded-full ${r[7] > 0 ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'} text-[11px] font-bold">
+                        ${r[7]} Shifts
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join("");
+
+    lucide.createIcons();
+}
+
+window.onload = () => {
+    updateCardGraph(0, 'forecastVsSchStaff');
+    updateCardGraph(1, 'actVsProj');
+    updateCardGraph(2, 'rolesPerShift');
+    loadLaborHistory();
+};
+
+document.addEventListener("click",e=>{
+    if(!e.target.closest("#employeeCard") && !e.target.closest('[onclick="openEmployeeCard(event,this)"]')){
+        const card = document.getElementById("employeeCard");
+        if(card) card.classList.add("hidden");
+    }
+});
+</script>
+</body>
+</html>
