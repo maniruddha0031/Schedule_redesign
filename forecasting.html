@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZIP Forecasting Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg-nav: #0b2545;
+            --bg-main: #f4f7fa;
+        }
+        body { 
+            font-family: 'Plus Jakarta Sans', sans-serif; 
+            background-color: var(--bg-main);
+        }
+        
+        /* Sidebar Styling */
+        .sidebar { width: 72px; min-width: 72px; transition: width .3s cubic-bezier(0.4, 0, 0.2, 1); overflow: hidden; z-index: 50; background: var(--bg-nav); }
+        .sidebar:hover { width: 230px; }
+        .menu-item { display: flex; align-items: center; gap: 14px; height: 48px; border-radius: 8px; width: calc(100% - 16px); margin: 4px 8px; transition: .2s; cursor: pointer; color: rgba(255,255,255,0.7); }
+        .menu-item:hover { background: rgba(255,255,255,0.1); color: white; }
+        .menu-item.active { background: #1d3b6a; color: white; border-left: 4px solid #3b82f6; border-radius: 0 8px 8px 0; margin-left: 0; width: calc(100% - 8px); }
+        .label { opacity: 0; transition: .2s; white-space: nowrap; font-size: 13px; font-weight: 500; }
+        .sidebar:hover .label { opacity: 1; }
+        .sidebar:not(:hover) .menu-item { 
+    justify-content: center;
+    align-items:center;
+    padding-left:0;
+    margin:6px 0;
+}
+
+        /* KPI Cards */
+        .hero-card {
+            background: white;
+            border-radius: 20px;
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 20px -4px rgba(0,0,0,0.05);
+            cursor: pointer;
+        }
+        .hero-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0,0,0,0.08);
+            border-color: var(--primary);
+        }
+        .hero-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 4px; height: 100%;
+            background: var(--accent-color, var(--primary));
+            opacity: 0.8;
+        }
+
+        /* Tables */
+        .modern-table th { background: #f8fafc; color: #64748b; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; padding: 14px 12px; border-bottom: 1px solid #e2e8f0; }
+        .modern-table td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: #334155; }
+        
+        .input-hero {
+            background: #fff; border: 1px solid #e2e8f0; border-radius: 6px; padding: 4px 8px;
+            font-weight: 700; width: 80px; text-align: right; transition: all 0.2s;
+        }
+        .input-hero:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1); }
+
+        .date-select {
+            appearance: none; background: white; padding: 6px 32px 6px 12px; border-radius: 8px;
+            border: 1px solid #e2e8f0; font-size: 12px; font-weight: 600; cursor: pointer; outline: none;
+        }
+
+        /* Modal */
+        .modal-backdrop {
+            position: fixed; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(8px);
+            z-index: 100; display: flex; align-items: center; justify-content: center; opacity: 0;
+            pointer-events: none; transition: all 0.3s ease;
+        }
+        .modal-backdrop.active { opacity: 1; pointer-events: auto; }
+        .modal-content {
+            background: white; border-radius: 28px; width: 95%; max-width: 1000px; padding: 32px;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.5); transform: translateY(20px); transition: all 0.3s ease;
+        }
+        .modal-backdrop.active .modal-content { transform: translateY(0); }
+
+        .toggle-btn { padding: 6px; border-radius: 8px; transition: all 0.2s; color: #94a3b8; }
+        .toggle-btn:hover { background: #fff; color: var(--primary); }
+        .toggle-btn.active { background: #fff; color: var(--primary); box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+
+        /* Hourly Table Custom Styling */
+        .hourly-table-container { max-height: 500px; overflow-y: auto; border-top: 1px solid #e2e8f0; }
+        .hourly-table-container::-webkit-scrollbar { width: 6px; }
+        .hourly-table-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+        
+        .hourly-cell-input {
+            width: 100%; border: none; background: transparent; text-align: right;
+            font-size: 12px; color: #1e293b; padding: 4px; outline: none;
+        }
+        .hourly-cell-input:focus { background: #f1f5f9; border-radius: 4px; }
+		.sidebar a{
+    text-decoration:none;
+    color:inherit;
+    display:flex;
+    align-items:center;
+}
+
+.menu-item i{
+    min-width:20px;
+    min-height:20px;
+}
+.sidebar:not(:hover) .menu-item .label{
+    display:none;
+}
+.sidebar:not(:hover) .menu-item{
+    justify-content:center;
+    padding-left:0;
+}
+
+.sidebar:not(:hover) .menu-item .label{
+    display:none;
+}
+.menu-item i{
+    min-width:22px;
+    min-height:22px;
+}
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-[#f4f7fa]">
+
+<!-- TOP BAR -->
+<div class="h-14 bg-[#0b2545] text-white flex items-center justify-between px-5 shrink-0 z-50 shadow-md">
+    <div class="flex items-center gap-6 text-[13px]">
+        <div class="flex items-center gap-2 font-bold tracking-tight text-lg mr-4">
+            <i data-lucide="zap" class="w-5 h-5 text-blue-400 fill-current"></i>
+            <span>ZIP<span class="text-blue-400">FORECAST</span></span>
+        </div>
+<a href="index.html" class="flex items-center gap-2 font-medium text-slate-200 hover:text-white transition-colors">
+    <i data-lucide="home" class="w-4 h-4"></i><span>Dashboard</span>
+</a>
+
+<a href="schedule.html" class="flex items-center gap-2 font-medium text-slate-200 hover:text-white transition-colors">
+    <i data-lucide="calendar-days" class="w-4 h-4"></i><span>Schedule</span>
+</a>
+        <div class="flex items-center gap-2 font-medium">
+            <i data-lucide="map-pin" class="w-4 h-4 text-blue-400"></i><span>085 - Del Mar</span>
+        </div>
+    </div>
+    <div class="flex items-center gap-5 text-[13px]">
+        <div class="flex items-center gap-2">
+            <i data-lucide="cloud" class="w-4 h-4"></i><span>75°F</span>
+        </div>
+        <div class="border-l border-blue-700 h-5"></div>
+        <div class="font-mono text-xs opacity-80 uppercase tracking-wider">04:33 AM LOS ANGELES</div>
+        <div class="w-8 h-8 rounded-full bg-slate-400 border-2 border-slate-300 flex items-center justify-center overflow-hidden cursor-pointer">
+            <i data-lucide="user" class="w-5 h-5 text-white"></i>
+        </div>
+    </div>
+</div>
+
+<div class="flex flex-1 min-h-0">
+    <!-- SIDEBAR -->
+    <aside class="sidebar flex flex-col justify-between shrink-0">
+<div class="pt-2 w-full">
+
+<a href="index.html" class="menu-item">
+    <i data-lucide="layout-grid" class="w-5 h-5"></i>
+    <span class="label">Dashboard</span>
+</a>
+
+<a href="schedule.html" class="menu-item">
+    <i data-lucide="calendar" class="w-5 h-5"></i>
+    <span class="label">Schedule</span>
+</a>
+
+<div class="menu-item">
+    <i data-lucide="clock" class="w-5 h-5"></i>
+    <span class="label">Standard Shifts</span>
+</div>
+
+<a href="forecasting.html" class="menu-item active">
+    <i data-lucide="trending-up" class="w-5 h-5"></i>
+    <span class="label">Forecasting</span>
+</a>
+
+<div class="menu-item">
+    <i data-lucide="users" class="w-5 h-5"></i>
+    <span class="label">Team Center</span>
+</div>
+
+<div class="menu-item">
+    <i data-lucide="file-bar-chart" class="w-5 h-5"></i>
+    <span class="label">Reports</span>
+</div>
+<a href="#" class="menu-item">
+    <i data-lucide="user" class="w-5 h-5"></i>
+    <span class="label">Employees</span>
+</a>
+
+</div>
+        <div class="pb-6 flex flex-col items-center gap-4">
+            <div class="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg shadow-blue-900/20"><i data-lucide="plus" class="w-5 h-5 text-white"></i></div>
+            <div class="w-10 h-10 bg-slate-700/50 rounded-full flex items-center justify-center cursor-pointer"><i data-lucide="settings" class="w-5 h-5 text-white"></i></div>
+        </div>
+    </aside>
+
+    <!-- MAIN WORKSPACE -->
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <!-- Local Header -->
+        <div class="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
+            <div class="flex items-center gap-6">
+                <div class="flex bg-slate-100 p-1 rounded-xl">
+                    <button onclick="switchTab('dashboard')" id="btn-dash" class="px-5 py-2 rounded-lg text-sm font-bold transition-all bg-white text-indigo-600 shadow-sm">Dashboard</button>
+                    <button onclick="switchTab('detail')" id="btn-detail" class="px-5 py-2 rounded-lg text-sm font-bold transition-all text-slate-500 hover:text-slate-800">Forecast Detail</button>
+                </div>
+                <h2 id="view-title" class="text-xl font-extrabold text-slate-800 tracking-tight hidden md:block">Forecasting Executive View</h2>
+            </div>
+            
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <select onchange="updateDate(this.value)" class="date-select">
+                        <option>Feb 02, 2026 - Feb 08, 2026</option>
+                        <option>Feb 09, 2026 - Feb 15, 2026</option>
+                    </select>
+                    <div class="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+                        <i data-lucide="chevron-down" class="w-3.5 h-3.5"></i>
+                    </div>
+                </div>
+                <button class="bg-indigo-50 text-indigo-600 p-2 rounded-lg hover:bg-indigo-100">
+                    <i data-lucide="sparkles" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="flex-1 overflow-y-auto p-6 space-y-8" id="scroll-target">
+            
+            <!-- VIEW: DASHBOARD -->
+            <div id="view-dashboard" class="space-y-8">
+                <!-- HERO KPI TILES -->
+                <div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-5">
+                    <div class="hero-card p-5" onclick="openModal('Actual Sales')" style="--accent-color: #3b82f6;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actual Sales</span>
+                            <div class="text-blue-500 bg-blue-50 p-1.5 rounded-lg"><i data-lucide="dollar-sign" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">$9,971</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> 4.16%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-card p-5" onclick="openModal('Forecasted Sales')" style="--accent-color: #f59e0b;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forecasted Sales</span>
+                            <div class="text-orange-500 bg-orange-50 p-1.5 rounded-lg"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">$45,434</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-rose-500 bg-rose-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-down" class="w-3 h-3"></i> 0.47%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-card p-5" onclick="openModal('Adj Forecast Sales')" style="--accent-color: #10b981;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Adj. Forecast Sales</span>
+                            <div class="text-emerald-500 bg-emerald-50 p-1.5 rounded-lg"><i data-lucide="trending-up" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">$45,434</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> 1.45%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-card p-5" onclick="openModal('Actual Trans')" style="--accent-color: #6366f1;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Actual Trans</span>
+                            <div class="text-indigo-500 bg-indigo-50 p-1.5 rounded-lg"><i data-lucide="users" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">393</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> 3.5%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-card p-5" onclick="openModal('Forecasted Trans')" style="--accent-color: #06b6d4;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Forecasted Trans</span>
+                            <div class="text-cyan-500 bg-cyan-50 p-1.5 rounded-lg"><i data-lucide="user-check" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">1,814</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> 0.6%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hero-card p-5" onclick="openModal('Adj Forecast Trans')" style="--accent-color: #ec4899;">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Adj. Forecast Trans</span>
+                            <div class="text-pink-500 bg-pink-50 p-1.5 rounded-lg"><i data-lucide="user-plus" class="w-4 h-4"></i></div>
+                        </div>
+                        <h3 class="text-2xl font-black text-slate-900">1,814</h3>
+                        <div class="flex items-center justify-between mt-2">
+                            <div class="flex items-center gap-1.5 text-[11px] font-bold text-emerald-500 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                <i data-lucide="trending-up" class="w-3 h-3"></i> 2.6%
+                            </div>
+                            <div class="p-1 hover:bg-slate-100 rounded transition-colors">
+                                <i data-lucide="bar-chart-2" class="w-4 h-4 text-slate-300"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GRAPHS ROW 1 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm relative group">
+                        <div class="flex justify-between items-center mb-6">
+                            <h4 class="font-extrabold text-slate-800">Current Week Forecast</h4>
+                            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button onclick="changeChartType('mainChart', 'line')" class="toggle-btn" id="mainChart-line"><i data-lucide="line-chart" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('mainChart', 'bar')" class="toggle-btn active" id="mainChart-bar"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('mainChart', 'area')" class="toggle-btn" id="mainChart-area"><i data-lucide="trending-up" class="w-4 h-4"></i></button>
+                                <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                                <button onclick="maximizeChart('mainChart', 'Current Week Forecast')" class="toggle-btn text-slate-400 hover:text-indigo-600"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="h-64"><canvas id="mainChart"></canvas></div>
+                    </div>
+                    <div class="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm relative group">
+                        <div class="flex justify-between items-center mb-6">
+                            <h4 class="font-extrabold text-slate-800">Forecast Trend</h4>
+                            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button onclick="changeChartType('trendChart', 'line')" class="toggle-btn" id="trendChart-line"><i data-lucide="line-chart" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('trendChart', 'bar')" class="toggle-btn" id="trendChart-bar"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('trendChart', 'area')" class="toggle-btn active" id="trendChart-area"><i data-lucide="trending-up" class="w-4 h-4"></i></button>
+                                <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                                <button onclick="maximizeChart('trendChart', 'Forecast Trend')" class="toggle-btn text-slate-400 hover:text-indigo-600"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="h-64"><canvas id="trendChart"></canvas></div>
+                    </div>
+                </div>
+
+                <!-- GRAPHS ROW 2 -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-6">
+                    <div class="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm relative group">
+                        <div class="flex justify-between items-center mb-6">
+                            <h4 class="font-extrabold text-slate-800">Forecast Accuracy Index</h4>
+                            <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                <button onclick="changeChartType('accuracyChart', 'line')" class="toggle-btn active" id="accuracyChart-line"><i data-lucide="line-chart" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('accuracyChart', 'bar')" class="toggle-btn" id="accuracyChart-bar"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></button>
+                                <button onclick="changeChartType('accuracyChart', 'area')" class="toggle-btn" id="accuracyChart-area"><i data-lucide="trending-up" class="w-4 h-4"></i></button>
+                                <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                                <button onclick="maximizeChart('accuracyChart', 'Forecast Accuracy Index')" class="toggle-btn text-slate-400 hover:text-indigo-600"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+                            </div>
+                        </div>
+                        <div class="h-64"><canvas id="accuracyChart"></canvas></div>
+                    </div>
+                    <div class="bg-white rounded-[24px] p-6 border border-slate-200 shadow-sm flex gap-4 relative group">
+                        <div class="flex-1">
+                            <div class="flex justify-between items-center mb-6">
+                                <h4 class="font-extrabold text-slate-800">Forecasted Hours</h4>
+                                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl">
+                                    <button onclick="changeChartType('hoursChart', 'line')" class="toggle-btn" id="hoursChart-line"><i data-lucide="line-chart" class="w-4 h-4"></i></button>
+                                    <button onclick="changeChartType('hoursChart', 'bar')" class="toggle-btn active" id="hoursChart-bar"><i data-lucide="bar-chart-3" class="w-4 h-4"></i></button>
+                                    <button onclick="changeChartType('hoursChart', 'area')" class="toggle-btn" id="hoursChart-area"><i data-lucide="trending-up" class="w-4 h-4"></i></button>
+                                    <div class="w-[1px] h-4 bg-slate-200 mx-1"></div>
+                                    <button onclick="maximizeChart('hoursChart', 'Forecasted Hours')" class="toggle-btn text-slate-400 hover:text-indigo-600"><i data-lucide="maximize-2" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                            <div class="h-64"><canvas id="hoursChart"></canvas></div>
+                        </div>
+                        <div class="w-48 border-l border-slate-100 pl-4 space-y-4 pt-10">
+                            <div class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">BY DEPARTMENT</div>
+                            <div class="space-y-4">
+                                <div><div class="flex justify-between text-[11px] mb-1"><span>Kitchen</span><span class="font-bold">145h</span></div><div class="h-1.5 w-full bg-slate-100 rounded-full"><div class="h-full bg-emerald-500 w-3/4 rounded-full"></div></div></div>
+                                <div><div class="flex justify-between text-[11px] mb-1"><span>Service</span><span class="font-bold">210h</span></div><div class="h-1.5 w-full bg-slate-100 rounded-full"><div class="h-full bg-blue-500 w-full rounded-full"></div></div></div>
+                                <div><div class="flex justify-between text-[11px] mb-1"><span>Bar</span><span class="font-bold">85h</span></div><div class="h-1.5 w-full bg-slate-100 rounded-full"><div class="h-full bg-purple-500 w-1/2 rounded-full"></div></div></div>
+                                <div><div class="flex justify-between text-[11px] mb-1"><span>Support</span><span class="font-bold">42h</span></div><div class="h-1.5 w-full bg-slate-100 rounded-full"><div class="h-full bg-orange-400 w-1/4 rounded-full"></div></div></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: DETAIL -->
+            <div id="view-detail" class="hidden space-y-6 pb-10">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="flex items-center bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
+                            <button class="p-2 border-r hover:bg-slate-50"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                            <div class="px-4 text-xs font-bold">02/02/2026 - 02/08/2026</div>
+                            <button class="p-2 border-l hover:bg-slate-50"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                        </div>
+                        <button class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-bold shadow-lg shadow-blue-200">GO</button>
+                    </div>
+                    <div class="flex items-center gap-4">
+                        <div class="flex bg-slate-200 p-1 rounded-full">
+                            <button class="px-4 py-1.5 rounded-full text-xs font-bold bg-white text-blue-600 shadow-sm">Dollar</button>
+                            <button class="px-4 py-1.5 rounded-full text-xs font-bold text-slate-500">Hours</button>
+                        </div>
+                        <select class="text-xs font-bold border rounded-lg px-3 py-2 bg-white outline-none">
+                            <option>Sales ($)</option>
+                        </select>
+                        <button class="p-2 border rounded-lg hover:bg-white text-slate-400"><i data-lucide="settings" class="w-4 h-4"></i></button>
+                    </div>
+                </div>
+
+                <!-- Main Forecast Table -->
+                <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-sm">
+                    <table class="w-full modern-table text-left border-collapse">
+                        <thead>
+                            <tr>
+                                <th class="pl-6 w-56">Forecast</th>
+                                <th>MON 02 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>TUE 03 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>WED 04 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>THU 05 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>FRI 06 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>SAT 07 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th>SUN 08 <i data-lucide="info" class="w-3 h-3 inline opacity-40 ml-1"></i></th>
+                                <th class="text-right pr-6">Weekly Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Row 1: Weather -->
+                            <tr class="bg-slate-50/50">
+                                <td class="pl-6 font-bold">Weather</td>
+                                <td><div class="text-center"><i data-lucide="sun" class="w-5 h-5 text-amber-500 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="sun" class="w-5 h-5 text-amber-500 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="cloud-rain" class="w-5 h-5 text-blue-400 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="sun" class="w-5 h-5 text-amber-500 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="sun" class="w-5 h-5 text-amber-500 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="cloud" class="w-5 h-5 text-slate-400 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td><div class="text-center"><i data-lucide="sun" class="w-5 h-5 text-amber-500 mx-auto mb-1"></i><span class="text-[10px] text-slate-400 uppercase">N/A</span></div></td>
+                                <td class="text-right pr-6 font-bold text-slate-400">—</td>
+                            </tr>
+                            <!-- Row 2: My Forecast -->
+                            <tr>
+                                <td class="pl-6 font-bold">My Forecast</td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="5268" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="4812" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="5075" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="4815" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="8596" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="8626" class="input-hero font-bold text-slate-800"></div></td>
+                                <td><div class="flex items-center gap-1"><span class="text-slate-300 text-xs">$</span><input type="text" value="8242" class="input-hero font-bold text-slate-800"></div></td>
+                                <td class="text-right pr-6 font-black text-slate-900 text-lg">$45,434</td>
+                            </tr>
+                            <!-- Row 3: Increase/Decrease -->
+                            <tr class="bg-slate-50/30">
+                                <td class="pl-6 font-bold">Increase/Decrease</td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <div class="flex flex-col gap-1 items-end">
+                                        <div class="flex items-center gap-1"><span class="text-slate-300 text-[10px]">$</span><input type="text" value="0" class="input-hero text-xs py-0.5 font-normal"></div>
+                                        <div class="flex items-center gap-1"><input type="text" value="0" class="input-hero text-[10px] py-0 font-normal h-4 w-12 text-center"> <span class="text-[10px] text-slate-400">%</span></div>
+                                    </div>
+                                </td>
+                                <td class="text-right pr-6 font-bold">$0 <div class="text-[10px] text-slate-400 font-normal">0%</div></td>
+                            </tr>
+                            <!-- Row 4: Forecast Adjustment -->
+                            <tr>
+                                <td class="pl-6 text-slate-400 font-medium">Forecast Adjustment</td>
+                                <td>0.0%</td><td>0.0%</td><td>0.0%</td><td>0.0%</td><td>0.0%</td><td>0.0%</td><td>0.0%</td>
+                                <td class="text-right pr-6 font-bold text-slate-900">0%</td>
+                            </tr>
+                            <!-- Row 5: Base Forecast -->
+                            <tr class="bg-indigo-50/20">
+                                <td class="pl-6 font-bold text-slate-700">Base Forecast</td>
+                                <td class="font-bold">$5,268</td><td class="font-bold">$4,812</td><td class="font-bold">$5,075</td>
+                                <td class="font-bold">$4,815</td><td class="font-bold">$8,596</td><td class="font-bold">$8,626</td>
+                                <td class="font-bold">$8,242</td><td class="text-right pr-6 font-black text-slate-900">$45,434</td>
+                            </tr>
+                            <!-- Row 6: Current Week Actual Sales -->
+                            <tr>
+                                <td class="pl-6 text-slate-400 font-medium">Current Week Actual Sales</td>
+                                <td class="font-medium">$5,076</td><td class="font-medium">$4,895</td><td class="text-slate-300">—</td>
+                                <td class="text-slate-300">—</td><td class="text-slate-300">—</td><td class="text-slate-300">—</td>
+                                <td class="text-slate-300">—</td><td class="text-right pr-6 font-bold text-slate-900">$9,971</td>
+                            </tr>
+                            <!-- Row 7: Last Four Week Actual Sales -->
+                            <tr>
+                                <td class="pl-6 text-slate-400 font-medium">Last Four Week Actual Sales</td>
+                                <td class="font-medium">$4,951</td><td class="font-medium">$4,523</td><td class="font-medium">$4,770</td>
+                                <td class="font-medium">$4,526</td><td class="font-medium">$8,080</td><td class="font-medium">$8,108</td>
+                                <td class="font-medium">$7,747</td><td class="text-right pr-6 font-bold text-slate-900">$42,705</td>
+                            </tr>
+                            <!-- Row 8: Event -->
+                            <tr class="border-b-0">
+                                <td class="pl-6 font-bold text-slate-400 uppercase">Event</td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td><span class="text-[10px] font-bold text-indigo-600 uppercase">LOCAL GAME</span></td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td><span class="text-[10px] font-bold text-slate-300 uppercase">N/A</span></td>
+                                <td class="text-right pr-6">—</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- HOURLY FORECAST SECTION (Accordion) -->
+                <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+                    <button onclick="toggleHourlySection()" class="w-full flex items-center justify-between p-6 hover:bg-slate-50 transition-colors">
+                        <div class="flex items-center gap-2">
+                            <i data-lucide="clock" class="w-5 h-5 text-indigo-500"></i>
+                            <h3 class="font-extrabold text-slate-800">Hourly Forecast</h3>
+                        </div>
+                        <i data-lucide="chevron-down" id="hourly-chevron" class="w-5 h-5 text-slate-400 transition-transform"></i>
+                    </button>
+                    
+                    <div id="hourly-content" class="hidden">
+                        <div class="px-6 py-4 flex items-center justify-between bg-slate-50/50 border-t">
+                            <div class="flex items-center gap-2">
+                                <div class="flex bg-slate-200/50 p-1 rounded-lg text-[11px] font-bold">
+                                    <button onclick="setHourlyInterval('hourly')" id="int-hourly" class="px-4 py-1.5 rounded-md transition-all bg-white text-indigo-600 shadow-sm">Hourly</button>
+                                    <button onclick="setHourlyInterval('15min')" id="int-15min" class="px-4 py-1.5 rounded-md transition-all text-slate-500 hover:text-slate-800">15 Min</button>
+                                </div>
+                                <span class="text-xs text-slate-400 ml-2">Displaying 4:00 AM to 4:00 AM cycle</span>
+                            </div>
+                            <button class="bg-emerald-500 text-white px-5 py-2 rounded-lg text-xs font-bold shadow-lg shadow-emerald-100 flex items-center gap-2 hover:bg-emerald-600">
+                                <i data-lucide="save" class="w-3.5 h-3.5"></i> Update
+                            </button>
+                        </div>
+                        
+                        <div class="hourly-table-container">
+                            <table class="w-full modern-table border-collapse text-xs">
+                                <thead class="sticky top-0 z-10">
+                                    <tr>
+                                        <th class="pl-6 sticky left-0 bg-[#f8fafc] z-20">Time</th>
+                                        <th>MON 02</th><th>TUE 03</th><th>WED 04</th><th>THU 05</th><th>FRI 06</th><th>SAT 07</th><th>SUN 08</th>
+                                        <th class="text-right pr-6">Daily Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="hourly-table-body">
+                                    <!-- Dynamic Rows Injection -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- UNIVERSAL CHART MODAL -->
+<div id="chartModal" class="modal-backdrop" onclick="closeModal()">
+    <div class="modal-content" onclick="event.stopPropagation()">
+        <div class="flex justify-between items-center mb-6">
+            <h3 class="text-2xl font-black text-slate-900" id="modalTitle">Chart View</h3>
+            <button onclick="closeModal()" class="text-slate-400 hover:text-rose-500 transition-colors">
+                <i data-lucide="x" class="w-7 h-7"></i>
+            </button>
+        </div>
+        <div class="h-[500px] w-full mb-8"><canvas id="modalChart"></canvas></div>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    // Chart Configuration & State
+    const chartData = {
+        mainChart: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [
+                { label: 'Actual', backgroundColor: '#3b82f6', borderColor: '#3b82f6', data: [5100, 4900, 0, 0, 0, 0, 0], borderRadius: 4, barThickness: 15 },
+                { label: 'System Forecast', backgroundColor: '#10b981', borderColor: '#10b981', data: [5300, 4850, 5100, 4850, 8600, 8650, 8250], borderRadius: 4, barThickness: 15 },
+                { label: 'Manager Adj.', backgroundColor: '#f43f5e', borderColor: '#f43f5e', data: [5300, 4850, 5100, 4850, 8600, 8650, 8250], borderRadius: 4, barThickness: 15 }
+            ]
+        },
+        trendChart: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{ 
+                label: 'Current Trend', data: [5200, 4800, 5000, 4800, 8500, 8600, 8200], 
+                borderColor: '#6366f1', backgroundColor: 'rgba(99, 102, 241, 0.2)', fill: true, tension: 0.4, borderWidth: 4, pointRadius: 0 
+            }]
+        },
+        accuracyChart: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{ 
+                label: 'Accuracy %', data: [98, 100, 0, 0, 0, 0, 0], 
+                borderColor: '#8b5cf6', backgroundColor: 'rgba(139, 92, 246, 0.2)', fill: true, tension: 0.4, borderWidth: 3, pointRadius: 4 
+            }]
+        },
+        hoursChart: {
+            labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+            datasets: [{ label: 'Hours', backgroundColor: '#f59e0b', borderColor: '#f59e0b', data: [85, 80, 82, 80, 140, 140, 135], borderRadius: 8, barThickness: 20 }]
+        }
+    };
+
+    let charts = {};
+    let modalChartInstance = null;
+
+    function renderChart(id, type = 'bar') {
+        const canvas = document.getElementById(id);
+if(!canvas) return;
+const ctx = canvas.getContext('2d');
+        if (charts[id]) charts[id].destroy();
+
+        const configType = type === 'area' ? 'line' : type;
+        const data = JSON.parse(JSON.stringify(chartData[id]));
+        
+        if (type === 'area') {
+            data.datasets.forEach(ds => ds.fill = true);
+        } else if (type === 'line') {
+            data.datasets.forEach(ds => ds.fill = false);
+        }
+
+        charts[id] = new Chart(ctx, {
+            type: configType,
+            data: data,
+            options: { 
+                maintainAspectRatio: false, 
+                plugins: { 
+                    legend: { position: 'bottom', display: id === 'mainChart' || id === 'trendChart', labels: { usePointStyle: true, font: { weight: 600 } } } 
+                },
+                scales: {
+                    y: { beginAtZero: true, grid: { borderDash: [5,5], color: '#f1f5f9' } },
+                    x: { grid: { display: false } }
+                },
+                animation: { duration: 400 }
+            }
+        });
+    }
+
+    function changeChartType(id, type) {
+        renderChart(id, type);
+        ['line', 'bar', 'area'].forEach(t => document.getElementById(`${id}-${t}`)?.classList.remove('active'));
+        document.getElementById(`${id}-${type}`)?.classList.add('active');
+    }
+
+    function maximizeChart(id, title) {
+        document.getElementById('modalTitle').innerText = title;
+        document.getElementById('chartModal').classList.add('active');
+        const ctx = document.getElementById('modalChart').getContext('2d');
+        if (modalChartInstance) modalChartInstance.destroy();
+        const source = charts[id];
+        modalChartInstance = new Chart(ctx, { type: source.config.type, data: source.data, options: { maintainAspectRatio: false, plugins: { legend: { display: true, position: 'bottom' } } } });
+    }
+
+    function openModal(title) { maximizeChart('mainChart', `${title} Comparison`); }
+    function closeModal() { document.getElementById('chartModal').classList.remove('active'); }
+
+    function switchTab(view) {
+        document.getElementById('view-dashboard').classList.toggle('hidden', view === 'detail');
+        document.getElementById('view-detail').classList.toggle('hidden', view === 'dashboard');
+        document.getElementById('btn-dash').className = view === 'dashboard' ? "px-5 py-2 rounded-lg text-sm font-bold bg-white text-indigo-600 shadow-sm" : "px-5 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800";
+        document.getElementById('btn-detail').className = view === 'detail' ? "px-5 py-2 rounded-lg text-sm font-bold bg-white text-indigo-600 shadow-sm" : "px-5 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-800";
+        document.getElementById('view-title').innerText = view === 'dashboard' ? "Forecasting Executive View" : "Forecast Breakdown";
+        lucide.createIcons();
+    }
+
+    let isHourlyExpanded = false;
+    let hourlyInterval = 'hourly';
+    function toggleHourlySection() {
+        isHourlyExpanded = !isHourlyExpanded;
+        const content = document.getElementById('hourly-content');
+        const chevron = document.getElementById('hourly-chevron');
+        content.classList.toggle('hidden', !isHourlyExpanded);
+        chevron.style.transform = isHourlyExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+        if (isHourlyExpanded) renderHourlyTable();
+    }
+
+    function setHourlyInterval(val) {
+        hourlyInterval = val;
+        document.getElementById('int-hourly').className = val === 'hourly' ? "px-4 py-1.5 rounded-md transition-all bg-white text-indigo-600 shadow-sm" : "px-4 py-1.5 rounded-md transition-all text-slate-500 hover:text-slate-800";
+        document.getElementById('int-15min').className = val === '15min' ? "px-4 py-1.5 rounded-md transition-all bg-white text-indigo-600 shadow-sm" : "px-4 py-1.5 rounded-md transition-all text-slate-500 hover:text-slate-800";
+        renderHourlyTable();
+    }
+
+    function renderHourlyTable() {
+        const body = document.getElementById('hourly-table-body');
+        body.innerHTML = '';
+        const step = hourlyInterval === 'hourly' ? 60 : 15;
+        const totalMinutes = 24 * 60;
+        let startTime = 240; 
+        for (let i = 0; i < totalMinutes; i += step) {
+            const currentMins = (startTime + i) % (24 * 60);
+            const hour = Math.floor(currentMins / 60);
+            const mins = currentMins % 60;
+            const ampm = hour >= 12 ? 'PM' : 'AM';
+            const displayHour = hour % 12 === 0 ? 12 : hour % 12;
+            const timeStr = `${displayHour}:${mins.toString().padStart(2, '0')} ${ampm}`;
+            const row = document.createElement('tr');
+            row.className = i % (step * 2) === 0 ? 'bg-white' : 'bg-slate-50/30';
+            let cellsHtml = `<td class="pl-6 font-bold text-slate-500 border-r bg-inherit sticky left-0">${timeStr}</td>`;
+            for (let d = 0; d < 7; d++) {
+                const baseVal = Math.floor(45 + (d * 8) + (hour % 6) * 3);
+                cellsHtml += `<td class="text-right border-r"><div class="flex items-center justify-end text-slate-400">$<input type="text" value="${baseVal}" class="hourly-cell-input"></div></td>`;
+            }
+            cellsHtml += `<td class="text-right pr-6 font-bold text-slate-800">$0</td>`;
+            row.innerHTML = cellsHtml;
+            body.appendChild(row);
+        }
+    }
+
+window.onload = function() {
+    setTimeout(()=>{
+        renderChart('mainChart', 'bar');
+        renderChart('trendChart', 'area');
+        renderChart('accuracyChart', 'line');
+        renderChart('hoursChart', 'bar');
+        lucide.createIcons();
+		loadForecastData();
+    },150);
+}
+function saveForecastData(){
+    const inputs = document.querySelectorAll("#view-detail .input-hero");
+    let forecast = [];
+
+    inputs.forEach((el, index)=>{
+        // Only first 7 inputs belong to My Forecast row
+        if(index < 7){
+            const val = parseFloat(el.value.replace(/,/g,'')) || 0;
+            forecast.push(val);
+        }
+    });
+
+    localStorage.setItem("zip_forecast_week", JSON.stringify(forecast));
+}
+function loadForecastData(){
+    const data = localStorage.getItem("zip_forecast_week");
+    if(!data) return;
+
+    const forecast = JSON.parse(data);
+    const inputs = document.querySelectorAll("#view-detail .input-hero");
+
+    forecast.forEach((val,i)=>{
+        if(inputs[i]) inputs[i].value = val;
+    });
+}
+document.addEventListener("input", (e)=>{
+    if(e.target.classList.contains("input-hero")){
+        saveForecastData();
+    }
+});
+</script>
+</body>
+</html>

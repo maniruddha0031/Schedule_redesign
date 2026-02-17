@@ -1,0 +1,2555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>ZIP Schedule Dashboard</title>
+
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+
+<style>
+body{
+    font-family: Inter, system-ui, sans-serif;
+}
+
+/* LEFT PANEL */
+.sidebar{
+    width:72px;
+    min-width:72px;
+    transition:width .25s ease;
+    overflow:hidden;
+}
+.sidebar:hover{
+    width:230px;
+}
+
+.sidebar .menu-item{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    transition:.2s;
+    border-radius:8px;
+    width:100%;
+}
+.sidebar .menu-item:hover{
+    background:#173a68;
+}
+
+.label{
+    opacity:0;
+    transition:.2s;
+    white-space:nowrap;
+}
+.sidebar:hover .label{
+    opacity:1;
+}
+
+.top-text{
+    font-size:13px;
+}
+
+.card{
+    background:#fff;
+    border-radius:14px;
+    box-shadow:0 6px 14px rgba(0,0,0,.05);
+    border:1px solid #eef2f6;
+	transition:all .25s ease;
+}
+
+.sidebar:not(:hover) .menu-item{
+    justify-content: center;
+}
+.sidebar svg{ stroke-width:1.8; }
+.sidebar .menu-item svg{
+    width:22px;
+    height:22px;
+    flex-shrink:0;
+}
+
+.sidebar .menu-item i,
+.sidebar .menu-item svg {
+    opacity: 1 !important;
+    display: block;
+}
+
+.sidebar:not(:hover) .menu-item .label {
+    display: none;
+}
+
+.sidebar .menu-item {
+    height: 48px;
+}
+.sidebar:hover .menu-item{
+    padding-left:16px;
+}
+
+/* SHIFT BOXES */
+.shiftBox{
+    height: 100%;
+    width: 100%;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    text-align: left;
+    transition: background 0.2s;
+    cursor: pointer;
+    position: relative;
+}
+
+.shift-actions {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.4);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    border-radius: 2px;
+    z-index: 10;
+}
+
+.shiftBox:hover .shift-actions {
+    display: flex;
+}
+
+.action-icon {
+    width: 24px;
+    height: 24px;
+    background: white;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #475569;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    transition: transform 0.1s;
+}
+.action-icon:hover {
+    transform: scale(1.1);
+    color: #2563eb;
+}
+.action-icon.info { background:#eef2ff; color:#4f46e5; }
+.action-icon.info:hover { color:#3730a3; }
+
+.manager { background: #dbeafe; border-left: 4px solid #2563eb; color: #1e40af; }
+.kitchen { background: #fef9c3; border-left: 4px solid #eab308; color: #854d0e; }
+.leader { background: #f1f5f9; border-left: 4px solid #64748b; color: #334155; }
+
+/* UNASSIGNED SHIFT STYLING */
+.unassigned-shift {
+    background: repeating-linear-gradient(
+        45deg,
+        #3b82f61a,
+        #3b82f61a 10px,
+        #3b82f626 10px,
+        #3b82f626 20px
+    );
+    border-left: 4px solid #3b82f6;
+    color: #1e40af;
+}
+
+table td, table th{
+    border-right:1px solid #e5e7eb;
+    border-bottom:1px solid #e5e7eb;
+}
+
+table td {
+    padding: 0 !important;
+    height: 64px;
+	position: relative;
+}
+
+.addShift{
+    height: 100%;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #3b82f6;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+    background: transparent;
+    transition: all 0.2s;
+    opacity: 0; /* Hidden by default */
+}
+
+table td:hover .addShift {
+    opacity: 1; /* Shown on hover */
+    background: #f8fafc;
+}
+
+.unavailable-cell {
+    background-color: #f1f5f9;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.partial-unavailable{
+    background: repeating-linear-gradient(45deg,#fff7ed,#ffedd5 10px,#fed7aa 10px,#ffedd5 20px);
+    border-left:4px solid #ea580c;
+    color:#9a3412;
+    font-weight:800;
+}
+
+.partial-unavailable::after{
+    content:"⚠";
+    position:absolute;
+    top:4px;
+    right:6px;
+    font-size:14px;
+}
+.shift-gm{ background:#bae6fd; border-left:5px solid #0284c7; color:#0c4a6e;}
+.shift-leader{ background:#ddd6fe; border-left:5px solid #7c3aed; color:#4c1d95;}
+.shift-kitchen{ background:#bbf7d0; border-left:5px solid #059669; color:#064e3b;}
+.shift-cashier{ background:#fecaca; border-left:5px solid #dc2626; color:#7f1d1d;}
+
+/* MULTI SHIFT CELL */
+.shift-multi{
+    background: linear-gradient(135deg,#fef9c3,#fde68a);
+    border-left:6px solid #ca8a04;
+    color:#713f12;
+    position:relative;
+}
+
+/* stacked shifts icon */
+.shift-multi::after{
+    content:"≣";
+    position:absolute;
+    top:6px;
+    right:8px;
+    font-size:13px;
+    font-weight:900;
+    color:#a16207;
+}
+
+/* SHARED STORE SHIFT */
+.other-store-shift{
+    background:
+        repeating-linear-gradient(
+            135deg,
+            #e0f7fa,
+            #e0f7fa 10px,
+            #b2ebf2 10px,
+            #b2ebf2 20px
+        );
+    border-left:6px solid #0e7490;
+    color:#083344;
+    font-weight:700;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    text-align:center;
+    padding:6px;
+    position:relative;
+}
+
+.other-store-shift .store-label{
+    font-size:11px;
+    letter-spacing:.4px;
+}
+
+/* shared icon */
+.other-store-shift::before{
+    content:"⇄";
+    position:absolute;
+    top:6px;
+    right:8px;
+    font-size:14px;
+    font-weight:900;
+    color:#0e7490;
+}
+
+.other-store-shift .store-label{
+    font-size:11px;
+    letter-spacing:.3px;
+}
+
+.other-store-shift::before{
+    content:"⇄";
+    position:absolute;
+    top:6px;
+    right:8px;
+    font-size:14px;
+    font-weight:900;
+    color:#0e7490;
+}
+
+.other-store-shift .store-label {
+    font-weight: 800;
+    font-size: 10px;
+    color: #2563eb;
+    text-transform: uppercase;
+}
+
+.break-indicator {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    color: #2563eb;
+    opacity: 1;
+}
+
+/* Footer Stats Styling */
+.stats-label-col {
+    width: 260px;
+    flex-shrink: 0;
+    background: #f1f5f9;
+    border-right: 1px solid #e2e8f0;
+    font-weight: 600;
+    font-size: 11px;
+    padding-left: 12px;
+    display: flex;
+    align-items: center;
+}
+.stats-summary-bar { background: #f8fafc; border-top: 1px solid #cbd5e1; display: flex; }
+.stats-content-area { flex: 1; overflow: hidden; display: flex; }
+.sticky-footer-label { position: sticky; left: 0; z-index: 25; border-right: 1px solid #e2e8f0; }
+
+.stats-row-label {
+    width: 180px;
+    padding-left: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+}
+.stats-row-total {
+    width: 80px;
+    text-align: right;
+    padding-right: 12px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e293b;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    border-right: 1px solid #e2e8f0;
+}
+
+/* Status circles */
+.status-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 50%;
+    font-size: 9px;
+    font-weight: 800;
+    margin-left: 5px;
+    vertical-align: middle;
+    flex-shrink: 0;
+}
+.shared-badge { background-color: #f1f5f9; color: #64748b; border: 1px solid #cbd5e1; }
+.minor-badge { background-color: #fee2e2; color: #ef4444; border: 1px solid #fecaca; }
+
+/* Modal sidebar recovery */
+.modal-sidebar-item {
+    padding: 14px 20px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #64748b;
+    border-left: 4px solid transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.modal-sidebar-item:hover { background: #f1f5f9; color: #334155; }
+.modal-sidebar-active { background: #eff6ff; color: #2563eb; border-left-color: #2563eb; }
+
+.input-label { display: block; font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 6px; }
+.form-input { width: 100%; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 13px; outline: none; transition: border-color 0.2s; }
+.form-input:focus { border-color: #3b82f6; }
+
+/* Offer Pills */
+.unassigned-pills {
+    position: relative; border: 1px solid #e2e8f0; border-radius: 8px; padding: 6px; text-align: center; cursor: pointer; background: white; transition: all 0.2s;
+}
+.unassigned-pills.active { border: 2px solid #3b82f6; box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1); }
+.pill-title { font-size: 10px; font-weight: 800; color: #1e293b; }
+.pill-subtitle { font-size: 9px; font-weight: 700; text-transform: uppercase; color: white; padding: 1px 4px; border-radius: 2px; }
+
+.emp-offer-card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; background: white; transition: border-color 0.2s; }
+.emp-offer-card.selected { border-color: #3b82f6; background-color: #eff6ff; }
+.emp-badge { width: 32px; height: 32px; border-radius: 50%; background: #3b82f6; color: white; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; }
+
+/* Employee Card */
+.action-modal-card { 
+    position: absolute; 
+    background: #fff; 
+    width: 380px; 
+    border-radius: 12px; 
+    box-shadow: 0 10px 40px rgba(0,0,0,0.15); 
+    border: 1px solid #e2e8f0; 
+    z-index: 210; 
+}
+.action-modal-card::before { 
+    content: ""; 
+    position: absolute; 
+    top: 20px; 
+    left: -8px; 
+    width: 16px; 
+    height: 16px; 
+    background: white; 
+    border-left: 1px solid #e2e8f0; 
+    border-bottom: 1px solid #e2e8f0; 
+    transform: rotate(45deg); 
+}
+
+.action-btn-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 5px;
+    border-radius: 10px;
+    border: 1px solid #f1f5f9;
+    background: #fff;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+.action-btn-card:hover { border-color: #cbd5e1; background: #f8fafc; }
+.action-icon-circle {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+#moreOptionsMenu {
+    position: fixed; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 1000; padding: 4px 0; min-width: 180px;
+}
+.more-option-item { padding: 8px 12px; font-size: 12px; color: #475569; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.more-option-item:hover { background: #f8fafc; color: #2563eb; }
+
+/* Summary Row styling */
+.unassigned-summary-row {
+    background-color: #f8fafc;
+}
+.pending-badge {
+    background-color: #fee2e2;
+    color: #ef4444;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: 800;
+    margin-left: 4px;
+}
+
+/* NEW: Initiate Cards */
+.initiate-card {
+    border: 2px solid #f1f5f9;
+    border-radius: 16px;
+    padding: 24px;
+    cursor: pointer;
+    transition: all 0.2s;
+    text-align: center;
+}
+.initiate-card:hover {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+    transform: translateY(-2px);
+}
+.initiate-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 16px;
+}
+
+/* Enhanced Popover Controls */
+.popover-btn {
+    background: #fff;
+    border: 1px solid #eef2f6;
+    border-radius: 9999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+    transition: all 0.2s;
+}
+.popover-btn:hover {
+    background: #f8fafc;
+    border-color: #cbd5e1;
+}
+
+.popover-container {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    position: absolute;
+    top: 100%;
+    margin-top: 8px;
+    z-index: 100;
+    overflow: hidden;
+}
+
+.popover-column {
+    padding: 16px;
+    min-width: 180px;
+}
+
+.popover-column-title {
+    font-size: 14px;
+    font-weight: 700;
+    color: #1e293b;
+    margin-bottom: 12px;
+    padding-bottom: 4px;
+    border-bottom: 2px solid #3b82f6;
+    display: inline-block;
+}
+
+.popover-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 12px;
+    color: #475569;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.popover-item input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.popover-footer {
+    padding: 12px 16px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: space-between;
+}
+
+.btn-clear {
+    background: #fecaca;
+    color: #ef4444;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 14px;
+    border-radius: 9999px;
+}
+
+.btn-apply {
+    background: #93c5fd;
+    color: #1e40af;
+    font-size: 11px;
+    font-weight: 800;
+    padding: 6px 20px;
+    border-radius: 9999px;
+}
+
+/* Three Dot Menu */
+.action-dropdown {
+    position: absolute;
+    right: 0;
+    top: 100%;
+    margin-top: 8px;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    width: 200px;
+    z-index: 100;
+    padding: 4px 0;
+}
+
+.action-dropdown-item {
+    padding: 10px 16px;
+    font-size: 12px;
+    color: #475569;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+.action-dropdown-item:hover {
+    background: #f8fafc;
+    color: #2563eb;
+}
+
+/* HEADER ICON STYLING */
+.header-icon-btn {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: #f1f5f9;
+    color: #475569;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.header-icon-btn:hover {
+    background: #e2e8f0;
+    color: #1e293b;
+}
+.header-icon-btn svg {
+    width: 14px;
+    height: 14px;
+}
+
+/* MULTISHIFT TOOLTIP */
+.multishift-info-popup {
+    position: fixed;
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    box-shadow: 0 18px 45px rgba(0,0,0,0.25);
+    padding: 12px;
+    z-index: 99999;   /* critical */
+    width: 240px;
+}
+
+</style>
+</head>
+
+<body class="h-screen overflow-hidden bg-[#eef2f6] flex flex-col">
+
+<!-- TOP BAR -->
+<div class="h-14 bg-[#0b2545] text-white flex items-center justify-between px-5 shrink-0">
+    <div class="flex items-center gap-6 top-text">
+        <div class="relative">
+            <button id="appsBtn" onclick="toggleApps()" class="w-9 h-9 rounded-lg bg-[#3b82f6] flex items-center justify-center shadow-sm">
+                <i data-lucide="layout-grid" class="w-5 h-5 text-white"></i>
+            </button>
+            <div id="appsMenu" class="hidden absolute left-0 mt-2 w-44 bg-white text-slate-700 rounded-lg shadow-lg text-[13px] z-50">
+                <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">Zip Clock</div>
+                <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">Zip Inventory</div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2 cursor-pointer font-medium"><i data-lucide="home"></i><span>Dashboard</span></div>
+        <div class="flex items-center gap-2 cursor-pointer font-medium"><i data-lucide="calendar-days"></i><span>Schedule</span></div>
+        <div class="flex items-center gap-2 cursor-pointer font-medium"><i data-lucide="map-pin"></i><span>085 - Del Mar</span><i data-lucide="chevron-down" class="w-4"></i></div>
+    </div>
+    <div class="flex items-center gap-5 top-text">
+        <div class="flex items-center gap-2"><i data-lucide="cloud"></i><span>75°F</span></div>
+        <div class="border-l border-blue-700 h-5"></div>
+        <div>04:33 AMERICA/LOS ANGELES</div>
+        <div class="relative">
+            <button id="storeBtn" onclick="toggleStore()" class="bg-white text-slate-700 px-4 py-1 rounded-full flex items-center gap-2">
+                <i data-lucide="building-2" class="w-4"></i>Original Fish Taco, LLC<i data-lucide="chevron-down" class="w-4"></i>
+            </button>
+            <div id="storeMenu" class="hidden absolute right-0 mt-2 w-56 bg-white text-slate-700 rounded-lg shadow-lg text-[13px] z-50">
+                <div class="px-4 py-2 hover:bg-slate-100 cursor-pointer">085 - Del Mar</div>
+            </div>
+        </div>
+        <!-- AI Scheduling Entry Point -->
+        <div class="relative group">
+            <button class="w-8 h-8 rounded-full bg-indigo-600 flex items-center justify-center hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200">
+                <i data-lucide="sparkles" class="w-4 h-4 text-white"></i>
+            </button>
+            <div class="absolute top-10 right-0 hidden group-hover:block w-48 bg-white text-slate-700 rounded-lg shadow-xl border p-1 z-[100]">
+                <div onclick="openAIModal()" class="px-4 py-2 hover:bg-indigo-50 hover:text-indigo-600 cursor-pointer rounded text-[12px] font-bold flex items-center gap-2">
+                    <i data-lucide="robot" class="w-4 h-4"></i> AI Scheduling Tools
+                </div>
+            </div>
+        </div>
+        <div class="w-8 h-8 rounded-full bg-slate-300"></div>
+    </div>
+</div>
+
+<div class="flex flex-1 overflow-hidden">
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar bg-[#0b2545] text-white flex flex-col justify-between shrink-0">
+        <div class="pt-2 w-full">
+
+<a href="index.html" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="home"></i>
+    <span class="label">Dashboard</span>
+</a>
+
+<a href="schedule.html" class="menu-item px-4 py-3 bg-[#1d3b6a] block">
+    <i data-lucide="calendar-days"></i>
+    <span class="label">Schedule</span>
+</a>
+
+<a href="#" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="clock"></i>
+    <span class="label">Standard Shifts</span>
+</a>
+
+<a href="forecasting.html" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="trending-up"></i>
+    <span class="label">Forecasting</span>
+</a>
+
+<a href="#" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="users"></i>
+    <span class="label">Team Center</span>
+</a>
+
+<a href="#" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="file-text"></i>
+    <span class="label">Reports</span>
+</a>
+
+<a href="#" class="menu-item px-4 py-3 opacity-90 block">
+    <i data-lucide="user"></i>
+    <span class="label">Employees</span>
+</a>
+
+</div>
+        <div class="pb-4 flex flex-col items-center gap-3">
+            <div class="bg-blue-500 w-10 h-10 rounded-full flex items-center justify-center"><i data-lucide="wrench"></i></div>
+            <div class="bg-blue-400 w-10 h-10 rounded-full flex items-center justify-center"><i data-lucide="headset"></i></div>
+        </div>
+    </div>
+
+    <div class="flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 p-5 overflow-y-auto space-y-4 flex flex-col">
+            <!-- COMPACT CONTROL BAR -->
+            <div class="card py-2 px-4 flex justify-between items-center shrink-0">
+                <div class="flex items-center gap-4">
+                    <div class="relative">
+                        <div onclick="toggleCalendarMenu()" class="flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-1.5 text-[13px] cursor-pointer hover:bg-slate-200 transition-colors border border-transparent hover:border-slate-300">
+                            <i data-lucide="calendar" class="w-4 h-4 text-slate-500"></i>
+                            <span id="dateRangeText" class="font-medium text-slate-700 uppercase tracking-tighter">Feb 02 – Feb 08, 2026</span>
+                        </div>
+                        <div id="calendarMenu" class="hidden absolute left-0 mt-2 w-[280px] bg-white border border-slate-200 rounded-2xl shadow-lg p-4 z-50">
+                            <div class="flex justify-between items-center mb-5 px-1">
+                                <div id="calendarMonthTitle" class="font-bold text-slate-800 tracking-tight">February 2026</div>
+                                <div class="flex gap-1">
+                                    <button onclick="prevCalendarMonth(event)" class="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg"><i data-lucide="chevron-left" class="w-4 h-4"></i></button>
+                                    <button onclick="nextCalendarMonth(event)" class="p-1.5 hover:bg-slate-100 text-slate-500 rounded-lg"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>
+                                </div>
+                            </div>
+                            <div id="calendarGrid" class="grid grid-cols-7 text-center text-[13px] gap-y-1"></div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
+                        <button onclick="switchView('day')" id="btnDay" class="px-4 py-1.5 text-[12px] font-bold rounded-lg transition-all">Day</button>
+                        <button onclick="switchView('week')" id="btnWeek" class="px-4 py-1.5 text-[12px] font-bold rounded-lg transition-all">Week</button>
+                        <button onclick="switchView('month')" id="btnMonth" class="px-4 py-1.5 text-[12px] font-bold rounded-lg transition-all">Month</button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-3 text-[13px]">
+                    <div class="relative">
+                        <button onclick="customTogglePopover('filtersPopover')" class="popover-btn">
+                            Filters <i data-lucide="sliders-horizontal" class="w-4 h-4 text-slate-400"></i>
+                        </button>
+                        <div id="filtersPopover" class="hidden popover-container right-0 w-[400px]">
+                            <div class="flex">
+                                <div class="popover-column border-r">
+                                    <div class="popover-column-title">Show Employees From</div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>All Departments</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Crew</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Manager</span></div>
+                                </div>
+                                <div class="popover-column">
+                                    <div class="popover-column-title">Highlight Shifts For</div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>All Positions</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Assistant Manager</span></div>
+<div class="popover-item"><input type="checkbox" checked> <span>Cashier</span></div>
+<div class="popover-item"><input type="checkbox" checked> <span>DD</span></div>
+<div class="popover-item"><input type="checkbox" checked> <span>Floor Supervisor</span></div>
+<div class="popover-item"><input type="checkbox" checked> <span>Manager</span></div>
+                                </div>
+                            </div>
+                            <div class="popover-footer">
+                                <button class="btn-clear">Clear</button>
+                                <button class="btn-apply" onclick="customTogglePopover('filtersPopover')">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="relative">
+                        <button onclick="customTogglePopover('sortPopover')" class="popover-btn">
+                            Sort By <i data-lucide="sliders-horizontal" class="w-4 h-4 text-slate-400"></i>
+                        </button>
+                        <div id="sortPopover" class="hidden popover-container right-0 w-[380px]">
+                            <div class="flex">
+                                <div class="popover-column border-r">
+                                    <div class="popover-column-title">Sort By</div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Name</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Position</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Total hours (High to Low)</span></div>
+                                </div>
+                                <div class="popover-column">
+                                    <div class="popover-column-title">Group By</div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Department</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Position</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Scheduled</span></div>
+                                    <div class="popover-item"><input type="checkbox" checked> <span>Unscheduled</span></div>
+                                </div>
+                            </div>
+                            <div class="popover-footer">
+                                <button class="btn-clear">Clear</button>
+                                <button class="btn-apply" onclick="customTogglePopover('sortPopover')">Apply</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="bg-green-600 text-white px-4 py-1.5 h-9 rounded-lg flex items-center gap-2 font-bold shadow-sm transition-all hover:bg-green-700">
+                        <i data-lucide="check" class="w-4"></i> Publish
+                    </button>
+
+                    <!-- Three Dot Menu -->
+                    <div class="relative">
+                        <button onclick="customTogglePopover('actionDropdown')" class="w-9 h-9 border border-slate-200 rounded-lg flex items-center justify-center text-slate-500 hover:bg-slate-50 shadow-sm">
+                            <i data-lucide="more-vertical" class="w-5 h-5"></i>
+                        </button>
+                        <div id="actionDropdown" class="hidden action-dropdown">
+                            <div class="action-dropdown-item" onclick="customTogglePopover('actionDropdown'); openAddEmployeeModal();">
+                                <i data-lucide="user-plus" class="w-3.5 h-3.5"></i> Add Employee
+                            </div>
+                            <div class="action-dropdown-item" onclick="customTogglePopover('actionDropdown'); openInitiateModal();">
+                                <i data-lucide="settings-2" class="w-3.5 h-3.5"></i> Schedule preference
+                            </div>
+							<div class="action-dropdown-item" onclick="customTogglePopover('actionDropdown'); openSaveTemplateModal();">
+    <i data-lucide="bookmark" class="w-3.5 h-3.5"></i> Save As Template
+</div>
+                            <div class="action-dropdown-item" onclick="customTogglePopover('actionDropdown');">
+                                <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Schedule report
+                            </div>
+                            <div class="action-dropdown-item border-t" onclick="customTogglePopover('actionDropdown');">
+                                <i data-lucide="download" class="w-3.5 h-3.5"></i> Export data
+                            </div>
+							<div class="action-dropdown-item" onclick="openAuditReport()">
+							<i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Audit Report
+							</div>
+							<div class="action-dropdown-item" onclick="openTimeoffReport()">
+							<i data-lucide="calendar-x" class="w-3.5 h-3.5"></i> Timeoff Report
+							</div>
+
+<div class="action-dropdown-item" onclick="openDailyCoverage()">
+    <i data-lucide="layout-dashboard" class="w-3.5 h-3.5"></i> Daily Coverage Report
+</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- WORKSPACE -->
+            <div id="workspaceWrap" class="flex-1 flex gap-5 min-w-0 items-start overflow-hidden">
+                <div class="card overflow-hidden flex-1 min-w-0 h-full flex flex-col bg-white">
+                    <div id="tableScrollContainer" class="flex-1 overflow-auto w-full relative">
+                        <!-- Added min-width to prevent blank screens on zoom out -->
+                        <table id="mainScheduleTable" class="text-[13px] border-collapse table-fixed w-full">
+                            <thead class="bg-slate-50 sticky top-0 z-20"><tr></tr></thead>
+                            <tbody id="scheduleTable"></tbody>
+                        </table>
+                    </div>
+                    <!-- STATS FOOTER -->
+                    <div class="stats-footer shrink-0 border-t border-slate-200">
+                        <div class="stats-summary-bar cursor-pointer" onclick="toggleStatsDetails()">
+                            <div class="stats-label-col h-11 sticky-footer-label">
+                                <i id="statsChevron" data-lucide="chevron-up" class="w-4 h-4 text-blue-600 mr-2 transition-transform"></i>
+                                <span id="footerTotalLabel" class="text-[11px] text-slate-900 font-bold">Total Hours 479.00 | 33.37%</span>
+                            </div>
+                            <div id="footerScroll" class="stats-content-area h-11"><div id="summaryStatsRow" class="flex h-full"></div></div>
+                        </div>
+                        <div id="statsDetails" class="hidden overflow-hidden bg-white border-t border-slate-100">
+                            <div id="detailsRowsContainer" class="flex flex-col"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DAILY NOTES MODAL -->
+<div id="dayNotesModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[800] backdrop-blur-sm">
+    <div class="bg-white w-[450px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-200">
+        <div class="h-14 flex items-center justify-between px-6 border-b bg-slate-50">
+            <h2 id="notesModalTitle" class="text-[15px] font-bold text-slate-800">Daily Notes</h2>
+            <button onclick="closeDayNotes()" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-6">
+            <label class="input-label">Notes for the day</label>
+            <textarea id="dayNotesInput" class="form-input h-32 resize-none" placeholder="Enter notes here..."></textarea>
+        </div>
+        <div class="h-14 border-t flex justify-end items-center px-6 gap-3 bg-slate-50">
+            <button onclick="closeDayNotes()" class="text-[13px] font-bold text-slate-500">Cancel</button>
+            <button onclick="saveDayNotes()" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-[13px] font-bold">Save Notes</button>
+        </div>
+    </div>
+</div>
+
+<!-- CHART VIEW MODAL -->
+<div id="chartViewModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[800] backdrop-blur-sm">
+    <div class="bg-white w-[1000px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-200">
+        <div class="h-14 flex items-center justify-between px-6 border-b bg-slate-50">
+            <h2 id="chartModalTitle" class="text-[15px] font-bold text-slate-800">Chart View</h2>
+            <button onclick="closeChartView()" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-10 bg-white">
+            <div class="relative w-full h-[400px]">
+                <canvas id="forecastChart"></canvas>
+            </div>
+            <div id="chartLegend" class="mt-8 flex justify-center gap-10">
+                <div id="scheduledLegendItem" class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded bg-blue-600"></div>
+                    <span class="text-[12px] font-bold text-slate-600">Scheduled Hours</span>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="w-4 h-4 rounded bg-green-500"></div>
+                    <span class="text-[12px] font-bold text-slate-600">Forecasted Hours</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- INITIATE SCHEDULE MODAL -->
+<div id="initiateModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[400] backdrop-blur-sm">
+    <div class="bg-white w-[800px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in zoom-in duration-200">
+        <div class="h-16 flex items-center justify-between px-8 border-b shrink-0">
+            <h2 class="text-[18px] font-bold text-slate-800">Initiate Schedule</h2>
+            <button onclick="closeInitiateModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-8">
+            <div class="grid grid-cols-3 gap-6">
+                <div class="initiate-card" onclick="openCopyModal()">
+                    <div class="initiate-icon bg-blue-100 text-blue-600"><i data-lucide="copy"></i></div>
+                    <h3 class="font-bold text-[15px] text-slate-800">Copy Schedule</h3>
+                    <p class="text-[11px] text-slate-400 font-medium mt-1">Duplicate from previous successful weeks</p>
+                </div>
+                <div class="initiate-card" onclick="openTemplateModal()">
+                    <div class="initiate-icon bg-emerald-100 text-emerald-600"><i data-lucide="file-text"></i></div>
+                    <h3 class="font-bold text-[15px] text-slate-800">Load Template</h3>
+                    <p class="text-[11px] text-slate-400 font-medium mt-1">Apply saved staffing structures</p>
+                </div>
+                <div class="initiate-card" onclick="closeInitiateModal()">
+                    <div class="initiate-icon bg-amber-100 text-amber-600"><i data-lucide="plus-circle"></i></div>
+                    <h3 class="font-bold text-[15px] text-slate-800">Start from Scratch</h3>
+                    <p class="text-[11px] text-slate-400 font-medium mt-1">Begin with a blank week roster</p>
+                </div>
+            </div>
+            
+            <div class="mt-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 flex items-center justify-between">
+                <div class="flex items-center gap-4">
+                    <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white"><i data-lucide="wand-2"></i></div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 text-[14px]">Auto-create shifts from preferences</h4>
+                        <p class="text-[11px] text-slate-500">System will automatically build the roster based on saved availability</p>
+                    </div>
+                </div>
+                <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" value="" class="sr-only peer" checked>
+                    <div class="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                </label>
+            </div>
+        </div>
+        <div class="h-16 bg-slate-50 px-8 flex items-center justify-end gap-3 border-t">
+            <button onclick="closeInitiateModal()" class="text-[13px] font-bold text-slate-500 px-4">Cancel</button>
+            <button onclick="saveInitiatePreferences()" class="bg-indigo-600 text-white px-8 py-2.5 rounded-xl font-bold shadow-lg shadow-indigo-100">Confirm & Start</button>
+        </div>
+    </div>
+</div>
+
+<!-- COPY MODAL -->
+<!-- TEMPLATE SELECT MODAL -->
+<div id="templateModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[600] backdrop-blur-sm">
+    <div class="bg-white w-[720px] rounded-2xl shadow-2xl overflow-hidden">
+        <div class="h-16 flex items-center justify-between px-8 border-b">
+            <h2 class="text-[17px] font-bold text-slate-800">Load Weekly Template</h2>
+            <button onclick="closeTemplateModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+
+        <div class="p-6 grid grid-cols-2 gap-4">
+
+            <div class="border rounded-xl p-4 cursor-pointer hover:border-blue-500">
+                <div class="font-bold text-[14px]">Balanced Week</div>
+                <div class="text-[11px] text-slate-500">42 Shifts • 310 Hrs</div>
+            </div>
+
+            <div class="border rounded-xl p-4 cursor-pointer hover:border-blue-500">
+                <div class="font-bold text-[14px]">Peak Sales Template</div>
+                <div class="text-[11px] text-slate-500">55 Shifts • 420 Hrs</div>
+            </div>
+
+            <div class="border rounded-xl p-4 cursor-pointer hover:border-blue-500">
+                <div class="font-bold text-[14px]">Weekend Heavy</div>
+                <div class="text-[11px] text-slate-500">36 Shifts • 260 Hrs</div>
+            </div>
+
+            <div class="border rounded-xl p-4 cursor-pointer hover:border-blue-500">
+                <div class="font-bold text-[14px]">Minimal Labor</div>
+                <div class="text-[11px] text-slate-500">28 Shifts • 180 Hrs</div>
+            </div>
+
+        </div>
+
+        <div class="h-14 border-t flex justify-end items-center px-6">
+            <button onclick="closeTemplateModal()" class="bg-blue-600 text-white px-6 py-2 rounded-lg text-[13px] font-bold">Apply Template</button>
+        </div>
+    </div>
+</div>
+<div id="copyModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[500] backdrop-blur-sm">
+    <div class="bg-white w-[540px] rounded-2xl shadow-2xl overflow-hidden">
+        <div class="h-16 flex items-center justify-between px-8 border-b">
+            <h2 class="text-[17px] font-bold text-slate-800">Advanced Copy Schedule</h2>
+            <button onclick="closeCopyModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-8 space-y-6">
+            <div>
+                <label class="input-label">Select Source Week</label>
+                <select class="form-input bg-slate-50">
+                    <option>Feb 02 - Feb 08, 2026 (Previous)</option>
+                    <option>Jan 26 - Feb 01, 2026</option>
+                </select>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="input-label">Filter by Department</label>
+                    <select id="copyDept" class="form-input bg-slate-50">
+                        <option value="all">All Departments</option>
+                        <option value="crew">Crew</option>
+                        <option value="kitchen">Kitchen</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="input-label">Filter by Position</label>
+                    <select id="copyPos" class="form-input bg-slate-50">
+                        <option value="all">All Positions</option>
+                        <option value="manager">General Manager</option>
+                        <option value="staff">Staff</option>
+                    </select>
+                </div>
+            </div>
+            <div class="flex items-center gap-3 p-4 bg-blue-50 border border-blue-100 rounded-xl">
+                <input type="checkbox" class="w-4 h-4 text-blue-600" checked>
+                <span class="text-[12px] font-medium text-blue-700">Apply employee availability checks during copy</span>
+            </div>
+        </div>
+        <div class="h-16 border-t px-8 flex items-center justify-end gap-3 bg-white">
+            <button onclick="closeCopyModal()" class="text-[13px] font-bold text-slate-500 px-4">Cancel</button>
+            <button onclick="performCopy()" class="bg-blue-600 text-white px-10 py-2.5 rounded-xl font-bold shadow-lg shadow-blue-100">Confirm Copy</button>
+        </div>
+    </div>
+</div>
+
+<!-- AI SCHEDULING MODAL -->
+<div id="aiModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[500] backdrop-blur-sm">
+    <div class="bg-indigo-900 w-[500px] rounded-3xl shadow-2xl overflow-hidden text-white">
+        <div class="p-10 flex flex-col items-center text-center">
+            <div class="w-16 h-16 bg-white/10 rounded-2xl flex items-center justify-center mb-6 border border-white/20">
+                <i data-lucide="robot" class="w-8 h-8 text-indigo-300"></i>
+            </div>
+            <h2 class="text-2xl font-black mb-2 tracking-tight">AI Schedule Optimization</h2>
+            <p class="text-indigo-200 text-[13px] leading-relaxed mb-8">System will analyze sales forecasts, employee availability, and labor laws to generate the most efficient schedule.</p>
+            
+            <div class="w-full space-y-4 mb-8">
+                <div class="flex justify-between items-center text-[12px] font-bold uppercase tracking-widest text-indigo-300">
+                    <span>Labor Budget Priority</span>
+                    <span>95%</span>
+                </div>
+                <div class="w-full h-2 bg-indigo-950 rounded-full overflow-hidden">
+                    <div class="h-full bg-white rounded-full w-[95%]"></div>
+                </div>
+            </div>
+
+            <button onclick="runAIScheduling()" id="aiRunBtn" class="w-full bg-white text-indigo-900 py-4 rounded-2xl font-black shadow-xl hover:bg-indigo-50 transition-all flex items-center justify-center gap-3">
+                <i data-lucide="play-circle" class="w-5 h-5"></i> Start AI Generation
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- UNASSIGNED MODAL (OFFER) -->
+<div id="unassignedModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[100] backdrop-blur-sm">
+    <div class="bg-white w-[1100px] h-[720px] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div class="h-16 flex items-center justify-between px-8 border-b shrink-0">
+            <h2 class="text-[20px] font-bold text-slate-800">Offer</h2>
+            <button onclick="closeUnassignedModal()" class="text-slate-400 hover:text-slate-600"><i data-lucide="x" class="w-6 h-6"></i></button>
+        </div>
+        <div class="flex-1 flex flex-col overflow-hidden p-6 gap-6">
+            <div class="flex items-center justify-between px-2">
+                <div class="flex items-center gap-4">
+                    <span class="text-[12px] font-bold text-slate-500 uppercase tracking-widest">Unassigned Shifts</span>
+                    <div class="relative">
+                        <button onclick="toggleUnassignedDept()" class="flex items-center gap-2 border rounded-lg px-3 py-1.5 text-[12px] font-semibold text-slate-700 bg-white">Department <i data-lucide="chevron-down" class="w-3 h-3"></i></button>
+                        <div id="unassignedDeptMenu" class="hidden absolute top-10 left-0 bg-white border rounded shadow-lg p-2 z-50 min-w-[150px]"><label class="flex items-center gap-2 p-1 text-[12px]"><input type="checkbox" checked> <span>Crew</span></label></div>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 font-bold text-[12px] text-slate-600 uppercase"><input type="checkbox" class="w-4 h-4"> SELECT ALL SHIFTS</div>
+            </div>
+            
+            <div class="flex-1 overflow-y-auto pr-2 space-y-8">
+                <div class="grid grid-cols-7 gap-4 bg-slate-50 p-4 rounded-xl border">
+                    <div class="space-y-3">
+                        <div class="text-center font-bold text-[11px] text-slate-400 uppercase tracking-widest">Sun 14</div>
+                        <div class="unassigned-pills border-rose-400 active">
+                            <div class="flex justify-between items-center mb-1"><span class="pill-title">8:00A - 4:00P</span><input type="checkbox" checked class="w-3.5 h-3.5"></div>
+                            <div class="pill-subtitle bg-rose-500 text-white">DRIVE-THRU</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-[14px] font-bold text-slate-800 mb-4">Recommended Employees</h3>
+                    <div id="offerEmployeeGrid" class="grid grid-cols-4 gap-4 pb-4"></div>
+                </div>
+            </div>
+        </div>
+        <div class="h-16 border-t px-8 flex items-center justify-end bg-white shrink-0">
+            <button class="bg-indigo-600 text-white px-10 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-indigo-100"><i data-lucide="send" class="w-4 h-4"></i> Send Offer</button>
+        </div>
+    </div>
+</div>
+
+<!-- ADD EMPLOYEE MODAL -->
+<div id="addEmployeeModal" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center z-[300] backdrop-blur-sm">
+    <div class="bg-white w-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div class="h-16 flex items-center justify-between px-8 bg-[#f8f9fb] border-b border-slate-100 shrink-0">
+            <h2 class="text-[17px] font-bold text-slate-800">Add Employee</h2>
+            <button onclick="closeAddEmployeeModal()" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="p-8 space-y-6">
+            <div class="grid grid-cols-2 gap-6">
+                <div><label class="input-label">First Name</label><input type="text" placeholder="John" class="form-input"></div>
+                <div><label class="input-label">Last Name</label><input type="text" placeholder="Doe" class="form-input"></div>
+            </div>
+            <div><label class="input-label">Email ID</label><input type="email" placeholder="john.doe@example.com" class="form-input"></div>
+            <div class="grid grid-cols-2 gap-6">
+                <div><label class="input-label">Position</label><select class="form-input"><option>Crew</option><option>Kitchen</option></select></div>
+                <div><label class="input-label">Pay Rate ($)</label><input type="number" value="18.00" class="form-input"></div>
+            </div>
+        </div>
+        <div class="h-16 border-t border-slate-100 flex items-center justify-end px-8 gap-4 bg-white shrink-0">
+            <button onclick="closeAddEmployeeModal()" class="text-[13px] font-bold text-slate-500 px-4">Cancel</button>
+            <button onclick="closeAddEmployeeModal()" class="bg-blue-600 text-white px-10 py-2.5 rounded-xl font-bold">Add Employee</button>
+        </div>
+    </div>
+</div>
+
+<!-- ASSIGN SHIFT MODAL -->
+<div id="assignModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[150]">
+    <div class="bg-white w-[520px] rounded-xl shadow-xl overflow-hidden">
+        <div id="modalAvailabilityWarning" class="hidden bg-amber-50 border-b border-amber-100 px-6 py-3 text-[11px] text-amber-700 font-bold flex items-center gap-2">
+            <i data-lucide="alert-circle" class="w-4 h-4"></i>
+            <span id="warningText">Employee restricted hours warning.</span>
+        </div>
+        
+        <div id="breakSuggestion" class="hidden bg-indigo-50 border-b border-indigo-100 px-6 py-4 flex items-center gap-4">
+            <div class="w-10 h-10 bg-indigo-600 rounded-full flex items-center justify-center text-white shrink-0">
+                <i data-lucide="coffee" class="w-5 h-5"></i>
+            </div>
+            <div class="flex-1">
+                <p class="text-[11px] font-extrabold text-indigo-900 uppercase">Smart Suggestion</p>
+                <p class="text-[12px] text-indigo-600 font-medium">Shift exceeds 6 hours. Add a 30-min break?</p>
+            </div>
+            <button onclick="applySuggestedBreak()" class="bg-indigo-600 text-white text-[11px] font-bold px-3 py-1.5 rounded-lg">Apply</button>
+        </div>
+		<div class="flex items-center justify-between px-6 py-3 border-b bg-slate-100">
+    <span class="font-semibold text-[14px] text-slate-700">
+        Assign Shift to Arena ( Fri, Feb 13 2026 )
+    </span>
+    <button onclick="closeAssignModal()" class="text-red-500">
+        <i data-lucide="x" class="w-5 h-5"></i>
+    </button>
+</div>
+        <div class="p-6 space-y-5">
+
+    <div class="bg-green-100 border border-green-200 rounded-lg px-4 py-2 text-[13px] text-green-700 font-semibold flex items-center gap-2">
+        <i data-lucide="check-circle" class="w-4 h-4"></i> Available all day
+    </div>
+
+    <div class="flex justify-center">
+        <div class="bg-slate-200 rounded-full p-1 flex text-[12px] font-bold">
+            <button class="px-6 py-1 rounded-full bg-white shadow">Custom Shift</button>
+            <button class="px-6 py-1 rounded-full text-slate-500">Standard Shift</button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-4">
+        <div>
+            <label class="input-label">Shift Start-End Time</label>
+            <input class="form-input" value="8:00a-4:00p"/>
+        </div>
+        <div>
+            <label class="input-label">Select a Position</label>
+            <select class="form-input">
+                <option>No position</option>
+            </select>
+        </div>
+    </div>
+
+    <div class="flex justify-between text-[11px] text-slate-500 pt-2 border-t">
+        <span>Shift Hours 08:00 Hours</span>
+        <span>Min Hrs Per Week</span>
+        <span>Week Hours 00:00</span>
+    </div>
+    <div class="pt-2 border-t">
+    <div class="flex items-center justify-between mb-2">
+        <span class="input-label !mb-0">Break</span>
+
+        <div class="flex gap-2">
+            <button class="w-8 h-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+                <i data-lucide="plus" class="w-4 h-4"></i>
+            </button>
+            <button class="w-8 h-8 rounded-full bg-red-500 text-white flex items-center justify-center">
+                <i data-lucide="trash-2" class="w-4 h-4"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-3 gap-3">
+        <input class="form-input" placeholder="Start Time">
+        <input class="form-input" placeholder="End Time">
+        <select class="form-input">
+            <option>MEAL</option>
+        </select>
+    </div>
+
+    <div class="flex justify-between text-[11px] text-slate-500 pt-3">
+        <label class="flex items-center gap-2">
+            <input type="checkbox"> Save as standard shift
+        </label>
+        <span>Shift Hours 07:00 Hours</span>
+        <span>Min Hrs Per Week 40:00</span>
+        <span>Week Hours 00:00</span>
+    </div>
+
+    <div class="text-[11px] text-slate-500 pt-2">
+        Repeat Shift :
+        THU <input type="checkbox">
+        FRI <input type="checkbox" checked>
+        SAT <input type="checkbox">
+        SUN <input type="checkbox">
+    </div>
+</div>
+    <div>
+        <label class="input-label">Notes</label>
+        <div class="h-20 bg-slate-100 rounded"></div>
+    </div>
+
+    <div class="flex justify-between items-center pt-2">
+        <span class="text-blue-600 text-[12px] font-bold cursor-pointer">Add Time off?</span>
+        <div class="flex gap-2">
+            <button class="bg-green-600 text-white px-4 py-2 rounded-full text-[12px] font-bold">+ Create & Publish</button>
+            <button class="bg-blue-600 text-white px-4 py-2 rounded-full text-[12px] font-bold">+ Create</button>
+        </div>
+    </div>
+
+</div>
+    </div>
+</div>
+
+<!-- EMPLOYEE ACTION OVERLAY -->
+<div id="empActionOverlay" class="fixed inset-0 bg-transparent hidden z-[200]">
+    <div id="empActionCard" class="action-modal-card">
+        <div class="h-11 flex items-center justify-between px-4 border-b">
+            <span id="actionModalName" class="text-[14px] font-semibold text-slate-700">Employee Name</span>
+            <button onclick="closeActionModal()" class="text-slate-300 hover:text-slate-500"><i data-lucide="x" class="w-4 h-4"></i></button>
+        </div>
+<div class="p-5 space-y-4">
+
+    <div class="grid grid-cols-4 gap-3">
+        <div class="action-btn-card">
+            <div class="action-icon-circle bg-cyan-50 text-cyan-500"><i data-lucide="pencil"></i></div>
+            <span class="text-[11px] font-bold">Edit Employee</span>
+        </div>
+
+        <div class="action-btn-card opacity-40">
+            <div class="action-icon-circle bg-blue-50 text-blue-400"><i data-lucide="check-square"></i></div>
+            <span class="text-[11px] font-bold">Publish Shifts</span>
+        </div>
+
+        <div class="action-btn-card">
+            <div class="action-icon-circle bg-orange-50 text-orange-500"><i data-lucide="copy"></i></div>
+            <span class="text-[11px] font-bold">Copy Shifts</span>
+        </div>
+
+        <div class="action-btn-card">
+            <div class="action-icon-circle bg-rose-50 text-rose-500"><i data-lucide="trash-2"></i></div>
+            <span class="text-[11px] font-bold">Delete Shifts</span>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3 pt-2">
+        <div class="action-btn-card">
+            <div class="action-icon-circle bg-teal-50 text-teal-500"><i data-lucide="clock"></i></div>
+            <span class="text-[11px] font-bold">Availability</span>
+        </div>
+
+        <div class="action-btn-card">
+            <div class="action-icon-circle bg-indigo-50 text-indigo-500"><i data-lucide="moon"></i></div>
+            <span class="text-[11px] font-bold">Time Off</span>
+        </div>
+    </div>
+
+    <div class="border-t pt-3 text-[12px] text-slate-600 flex justify-between">
+        <span>Pay Rate: <b class="text-blue-600">$0.00</b></span>
+        <span>Min Hrs Per Week <b class="text-blue-600">00:00</b></span>
+    </div>
+
+    <div>
+        <div class="text-[11px] font-bold text-slate-500 mb-1">Employee Notes</div>
+        <div class="h-8 bg-slate-100 rounded"></div>
+    </div>
+
+</div>
+    </div>
+</div>
+<div id="alertPopup" class="hidden fixed bg-white border rounded-lg shadow-xl w-[260px] z-[500]">
+    <div id="alertList" class="max-h-[160px] overflow-y-auto text-[12px] p-3 space-y-2"></div>
+</div>
+
+<!-- MULTISHIFT INFO POPUP -->
+<div id="multishiftPopup" class="hidden multishift-info-popup">
+    <div class="flex items-center justify-between mb-2 pb-1 border-b">
+        <span class="text-[12px] font-bold text-slate-800">Multi-shift Details</span>
+        <button onclick="closeMultishiftPopup()" class="text-slate-400 hover:text-red-500"><i data-lucide="x" class="w-3.5 h-3.5"></i></button>
+    </div>
+    <div class="space-y-2">
+        <div class="p-2 bg-blue-50 rounded border border-blue-100">
+            <div class="text-[11px] font-bold text-blue-800">04:00A - 08:00A</div>
+            <div class="text-[10px] text-blue-600">Crew</div>
+        </div>
+        <div class="p-2 bg-amber-50 rounded border border-amber-100">
+            <div class="text-[11px] font-bold text-amber-800">02:00P - 06:00P</div>
+            <div class="text-[10px] text-amber-600">Trainer</div>
+        </div>
+    </div>
+</div>
+<div id="sharedStorePopup" class="hidden multishift-info-popup">
+    <div class="flex items-center justify-between mb-2 pb-1 border-b">
+        <span class="text-[12px] font-bold text-slate-800">Shared Store Shift</span>
+        <button onclick="document.getElementById('sharedStorePopup').classList.add('hidden')" class="text-slate-400 hover:text-red-500">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+    </div>
+
+    <div class="p-2 bg-cyan-50 rounded border border-cyan-200">
+        <div class="text-[11px] font-bold text-cyan-900">STORE B</div>
+        <div class="text-[11px] text-cyan-700">02:00 PM – 04:00 PM</div>
+        <div class="text-[10px] text-slate-500">Employee is scheduled at another location</div>
+    </div>
+</div>
+
+<div id="saveTemplateModal" class="fixed inset-0 bg-black/40 hidden items-center justify-center z-[700]">
+    <div class="bg-white w-[380px] rounded-xl shadow-xl p-6 space-y-4">
+        <div class="font-bold text-[14px]">Save Schedule Template</div>
+
+        <input id="templateNameInput" placeholder="Enter template name" class="form-input">
+
+        <div class="flex justify-end gap-2 pt-2">
+            <button onclick="closeSaveTemplateModal()" class="text-[12px] px-3">Cancel</button>
+            <button onclick="saveTemplate()" class="bg-blue-600 text-white text-[12px] px-4 py-1 rounded-lg">Save</button>
+        </div>
+    </div>
+</div>
+<!-- AUDIT REPORT MODAL -->
+<div id="auditReportModal" class="fixed inset-0 bg-slate-900/50 hidden items-start justify-center z-[600] pt-10">
+
+    <div class="bg-white w-[1200px] rounded-xl shadow-2xl overflow-hidden">
+
+        <!-- HEADER -->
+        <div class="flex justify-between items-center px-6 py-3 bg-[#f8fafc] border-b border-slate-200">
+            <span class="font-bold text-[14px] text-slate-700">Audit Trail Report</span>
+            <button onclick="closeAuditReport()" class="bg-slate-300 text-white text-[12px] px-4 py-1 rounded-full flex items-center gap-1">
+                <i data-lucide="arrow-left" class="w-3 h-3"></i> Close
+            </button>
+        </div>
+
+        <!-- FILTER BAR -->
+        <div class="flex justify-between items-center px-6 py-3 border-b bg-white">
+            <div class="flex items-center gap-2 border rounded-full px-3 py-1 text-[12px]">
+                <i data-lucide="calendar" class="w-4 h-4 text-slate-400"></i>
+                02/01/2026-02/11/2026
+            </div>
+
+            <div class="relative">
+    <button onclick="toggleExportMenu()" class="border rounded-full px-4 py-1 text-[12px] flex items-center gap-2">
+        Export <i data-lucide="chevron-down" class="w-4 h-4"></i>
+    </button>
+
+    <div id="exportMenu" class="hidden absolute right-0 mt-2 bg-white border rounded-lg shadow text-[12px] z-[700]">
+        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportAuditPDF()">Export PDF</div>
+        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportAuditCSV()">Export CSV</div>
+    </div>
+</div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="p-4 max-h-[400px] overflow-auto">
+            <table class="w-full text-[12px] border-collapse">
+                <thead class="bg-slate-100">
+                    <tr>
+                        <th class="text-left px-4 py-2">Date</th>
+                        <th class="text-left px-4 py-2">Action Performed By</th>
+                        <th class="text-left px-4 py-2">Actions</th>
+                    </tr>
+                </thead>
+
+                <tbody>
+                    <tr class="border-b">
+                        <td class="px-4 py-2">02/02/2026</td>
+                        <td class="px-4 py-2">-</td>
+                        <td class="px-4 py-2">Weekly schedule created from 02/02/2026 at 02/02/2026 07:07 AM</td>
+                    </tr>
+
+                    <tr class="border-b">
+                        <td class="px-4 py-2">02/12/2026</td>
+                        <td class="px-4 py-2">Priyansh</td>
+                        <td class="px-4 py-2">Weekly schedule copied from 02/02/2026 at 02/12/2026 02:50 PM</td>
+                    </tr>
+
+                    <tr>
+                        <td class="px-4 py-2">02/09/2026</td>
+                        <td class="px-4 py-2">Priyansh</td>
+                        <td class="px-4 py-2">Weekly schedule created from 02/09/2026 at 02/09/2026 11:55 AM</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+<!-- TIME OFF REPORT MODAL -->
+<div id="timeoffReportModal" class="fixed inset-0 bg-slate-900/50 hidden items-start justify-center z-[800] pt-10">
+
+    <div class="bg-white w-[1200px] rounded-xl shadow-2xl overflow-hidden">
+
+        <!-- HEADER -->
+        <div class="flex justify-between items-center px-6 py-3 bg-[#f8fafc] border-b border-slate-200">
+            <span class="font-bold text-[14px] text-slate-700">Time Off Report</span>
+
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <button onclick="toggleTimeoffExport()" class="border rounded-full px-4 py-1 text-[12px] flex items-center gap-2">
+                        Export <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                    </button>
+
+                    <div id="timeoffExportMenu" class="hidden absolute right-0 mt-2 bg-white border rounded-lg shadow text-[12px] z-[900]">
+                        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportTimeoffPDF()">Export PDF</div>
+                        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportTimeoffCSV()">Export CSV</div>
+                    </div>
+                </div>
+
+                <button onclick="closeTimeoffReport()" class="bg-red-500 text-white text-[12px] px-4 py-1 rounded-full">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="p-4 max-h-[450px] overflow-auto">
+            <table id="timeoffTable" class="w-full text-[12px] border-collapse">
+                <thead class="bg-slate-100">
+                    <tr>
+                        <th class="px-4 py-2 text-left">Employee</th>
+                        <th class="px-4 py-2 text-left">Time Off Day(s)</th>
+                        <th class="px-4 py-2 text-left">Requested Date</th>
+                        <th class="px-4 py-2 text-left">Requested Reason</th>
+                        <th class="px-4 py-2 text-left">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr class="border-b">
+                        <td class="px-4 py-2">Jose Francisco</td>
+                        <td class="px-4 py-2">Partial Day</td>
+                        <td class="px-4 py-2">Jun 03, 11:08a</td>
+                        <td class="px-4 py-2">Blood test</td>
+                        <td class="px-4 py-2 text-amber-600 font-semibold">Pending</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+    </div>
+</div>
+<!-- DAILY COVERAGE REPORT -->
+<div id="dailyCoverageModal" class="fixed inset-0 bg-slate-900/50 hidden items-start justify-center z-[800] pt-10">
+
+    <div class="bg-white w-[1300px] rounded-xl shadow-2xl overflow-hidden">
+
+        <!-- HEADER -->
+        <div class="flex justify-between items-center px-6 py-3 bg-[#f8fafc] border-b border-slate-200">
+            <span class="font-bold text-[14px] text-slate-700">Daily Coverage Report</span>
+
+            <div class="flex items-center gap-3">
+                <div class="relative">
+                    <button onclick="toggleCoverageExport()" class="border rounded-full px-4 py-1 text-[12px] flex items-center gap-2">
+                        Export <i data-lucide="chevron-down" class="w-4 h-4"></i>
+                    </button>
+
+                    <div id="coverageExportMenu" class="hidden absolute right-0 mt-2 bg-white border rounded-lg shadow text-[12px] z-[900]">
+                        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportCoveragePDF()">Export PDF</div>
+                        <div class="px-4 py-2 hover:bg-slate-50 cursor-pointer" onclick="exportCoverageCSV()">Export CSV</div>
+                    </div>
+                </div>
+
+                <button onclick="closeDailyCoverage()" class="bg-red-500 text-white text-[12px] px-4 py-1 rounded-full">
+                    Close
+                </button>
+            </div>
+        </div>
+
+        <!-- BODY -->
+<div class="flex flex-col max-h-[600px]">
+
+    <!-- EMPLOYEE AREA (SCROLLABLE) -->
+    <div class="overflow-auto max-h-[220px]">
+
+<table class="w-full border-collapse text-[11px]">
+
+<thead>
+<tr class="bg-[#1d3b6a] text-white uppercase text-[10px]">
+<th class="px-4 py-2 text-left w-[240px]">Employees</th>
+<th class="px-2 text-center">12A</th>
+<th class="px-2 text-center">1A</th>
+<th class="px-2 text-center">2A</th>
+<th class="px-2 text-center">3A</th>
+<th class="px-2 text-center">4A</th>
+<th class="px-2 text-center">5A</th>
+<th class="px-2 text-center">6A</th>
+<th class="px-2 text-center">7A</th>
+<th class="px-2 text-center">8A</th>
+<th class="px-2 text-center">9A</th>
+<th class="px-2 text-center">10A</th>
+<th class="px-2 text-center">11A</th>
+<th class="px-2 text-center">12P</th>
+<th class="px-2 text-center">1P</th>
+<th class="px-2 text-center">2P</th>
+<th class="px-2 text-center">3P</th>
+<th class="px-2 text-center">4P</th>
+<th class="px-2 text-center">5P</th>
+<th class="px-2 text-center">6P</th>
+<th class="px-2 text-center">7P</th>
+<th class="px-2 text-center">8P</th>
+<th class="px-2 text-center">9P</th>
+<th class="px-2 text-center">10P</th>
+<th class="px-2 text-center">11P</th>
+</tr>
+</thead>
+
+<tbody id="coverageEmployeeBody">
+
+<tr class="border-b">
+<td class="px-4 py-3">
+<div class="font-semibold text-blue-600">Daniel Velazquez</div>
+<div class="text-[10px] text-slate-500 font-bold">06:00 Hrs | 30:30 Hrs</div>
+</td>
+
+<td></td><td></td><td></td><td></td><td></td><td></td><td></td><td></td>
+
+<td colspan="6">
+<div class="shiftBox manager !h-8 !rounded-full !py-0 flex items-center justify-center text-[10px] font-bold">
+8:00A–2:00P
+<span class="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-[9px]">
+LINE 1-2 COOK
+</span>
+</div>
+</td>
+
+<td></td><td></td><td></td><td></td><td></td><td></td>
+<td></td><td></td><td></td><td></td>
+
+</tr>
+
+</tbody>
+</table>
+</div>
+
+<!-- DAILY STATS FIXED AREA -->
+<!-- DAILY STATS FIXED AREA -->
+<div class="border-t bg-slate-50">
+    <table class="w-full border-collapse text-[11px]">
+        <tbody>
+
+<tr>
+<td class="px-4 py-2 font-semibold w-[240px]">Total Scheduled Staff</td>
+<td class="text-center">49.50</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Fixed Staff</td>
+<td class="text-center">0.00</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Variable Staff</td>
+<td class="text-center">49.50</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Forecasted Staff</td>
+<td class="text-center">66.25</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold text-red-500">Staff Variance</td>
+<td class="text-center text-red-500">-16.75</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Management Coverage</td>
+<td class="text-center">12.00</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">SPLH (Sales/Labor Hours)</td>
+<td class="text-center">61.88</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">TPLH (Transactions/Labor Hrs)</td>
+<td class="text-center">3.17</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Sch Labour %</td>
+<td class="text-center">33.17</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Forecasted Sales ($)</td>
+<td class="text-center">3062.91</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Actual Sales ($)</td>
+<td class="text-center">496.27</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Forecasted Transactions</td>
+<td class="text-center">157</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Actual Transactions</td>
+<td class="text-center">2</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Forecasted No Of Items Sold</td>
+<td class="text-center">0</td>
+</tr>
+
+<tr>
+<td class="px-4 py-2 font-semibold">Actual No Of Items Sold</td>
+<td class="text-center">0</td>
+</tr>
+
+        </tbody>
+    </table>
+</div>
+</div>
+</div>
+<div id="moreOptionsMenu" class="hidden">
+    <div class="more-option-item" onclick="handleMoreOption('unassigned')"><i data-lucide="clock" class="w-3.5 h-3.5"></i> Mark as unassigned</div>
+    <div class="more-option-item" onclick="handleMoreOption('multi')"><i data-lucide="plus-circle" class="w-3.5 h-3.5"></i> Add Multiple shifts</div>
+</div>
+
+<script>
+/* DATA MOCK */
+let activeDate = new Date(2026, 1, 2);
+let calendarViewDate = new Date(2026, 1, 2);
+let activeView = "week";
+let activeCell = null;
+let sortAsc = true;
+let isUnassignedVisible = false;
+let myChart = null;
+
+let employeeData = Array.from({length:50},(_,i)=>({
+    id:i, name:["Angie Vasquez","Benjamin Limon","Daniel Garcia","Daniel Velazquez","David Acosta","Evelia Gonzalez","James Rodriguez","Jessica Smith"][i%8] || ("Employee "+(i+1)),
+    initials: ["AV","BL","DG","DV","DA","EG","JR","JS"][i%8] || "EE",
+    avatar: `https://i.pravatar.cc/150?u=${i+10}`,
+    position:i%3===0?"General Manager":i%2===0?"Shift Leader":"Line Cook",
+    payrate:(18+Math.random()*10).toFixed(2),
+    totalHours: (20 + Math.random() * 20).toFixed(2),
+    isShared: (i === 0), isMinor: (i === 1),
+    unavailableDays: (i === 2) ? [0, 1, 2, 3, 4, 5, 6] : [], 
+    partialUnavailableDays: (i === 4) ? {start: 8, end: 12, label: "08:00 - 12:00"} : null,
+    otherStoreShifts: (i === 0) ? {store: "STORE B", time: "14:00 - 16:00", role: "Cashier", start: 14, end: 16} : null,
+    shift: {start: 8, end: 16, time: "08:00 - 16:00"},
+	alerts: (i === 0 || i === 3) ? ["OT breach for this week", "Minor shift rule violation"] : []
+}));
+
+const offerEmployees = Array.from({length:15},(_,i)=>({
+    id:i, initials: ["MD","JS","JR","WB","LJ","JG","RM","CW","SA","DH","EC","MT"][i%12] || "EE",
+    name: ["Margaret Davis","Joseph Smith","Jessica Rodriguez","William Brown","Linda Jones","Jennifer Garcia","Richard Miller","Charles Wilson","Susan Anderson","Daniel Harris","Emily Clark","Michael Thompson"][i%12],
+    pos: ["Cashier","Crew","Kitchen","Prep","Delivery","Drive-Thru","Cashier","Crew","Dough","Kitchen","Shakerboard","Prep"][i%12],
+    rate: (15+i*0.2).toFixed(2), worked: (20+i).toString()+"h", min: "10h"
+}));
+
+/* NEW FEATURE FUNCTIONS */
+function customTogglePopover(id) {
+    const popover = document.getElementById(id);
+    const isHidden = popover.classList.contains('hidden');
+    const popovers = ['filtersPopover', 'sortPopover', 'actionDropdown', 'calendarMenu', 'moreOptionsMenu', 'unassignedDeptMenu', 'storeMenu', 'appsMenu', 'multishiftPopup'];
+    popovers.forEach(pId => {
+        if(pId !== id) {
+            const p = document.getElementById(pId);
+            if(p) p.classList.add('hidden');
+        }
+    });
+    if (isHidden) popover.classList.remove('hidden');
+    else popover.classList.add('hidden');
+}
+
+function openInitiateModal() { document.getElementById("initiateModal").classList.remove("hidden"); document.getElementById("initiateModal").classList.add("flex"); lucide.createIcons(); }
+function closeInitiateModal() { document.getElementById("initiateModal").classList.add("hidden"); document.getElementById("initiateModal").classList.remove("flex"); }
+function openCopyModal() { closeInitiateModal(); document.getElementById("copyModal").classList.remove("hidden"); document.getElementById("copyModal").classList.add("flex"); lucide.createIcons(); }
+function closeCopyModal() { document.getElementById("copyModal").classList.add("hidden"); document.getElementById("copyModal").classList.remove("flex"); }
+function openAIModal() { document.getElementById("aiModal").classList.remove("hidden"); document.getElementById("aiModal").classList.add("flex"); lucide.createIcons(); }
+function closeAIModal() { document.getElementById("aiModal").classList.add("hidden"); }
+
+/* NOTES FUNCTIONS */
+function openDayNotes(dayStr) {
+    document.getElementById("notesModalTitle").innerText = "Daily Notes - " + dayStr;
+    document.getElementById("dayNotesModal").classList.remove("hidden");
+    document.getElementById("dayNotesModal").classList.add("flex");
+    lucide.createIcons();
+}
+function closeDayNotes() {
+    document.getElementById("dayNotesModal").classList.add("hidden");
+}
+function saveDayNotes() {
+    closeDayNotes();
+}
+
+/* CHART FUNCTIONS */
+function openChartView(dayStr) {
+    document.getElementById("chartModalTitle").innerText = "Chart View - " + dayStr;
+    document.getElementById("chartViewModal").classList.remove("hidden");
+    document.getElementById("chartViewModal").classList.add("flex");
+    
+    // Logic for "if scheduled hours is not there for future days"
+    const isFuture = dayStr.includes("/02") && parseInt(dayStr.match(/\d{2}(?=\))/)) > 12;
+    
+    setTimeout(() => {
+        renderForecastChart(isFuture);
+    }, 100);
+    lucide.createIcons();
+}
+
+function closeChartView() {
+    document.getElementById("chartViewModal").classList.add("hidden");
+}
+
+function renderForecastChart(onlyForecast = false) {
+    const ctx = document.getElementById('forecastChart').getContext('2d');
+    
+    // X-Axis labels: 04:00 AM to 03:00 AM (next day)
+    const labels = [];
+    for (let i = 0; i < 24; i++) {
+        let h = (4 + i) % 24;
+        let suffix = h >= 12 ? 'P' : 'A';
+        let displayH = h % 12 === 0 ? 12 : h % 12;
+        labels.push(`${String(displayH).padStart(2, '0')}:00${suffix}`);
+    }
+
+    const scheduledData = onlyForecast ? Array(24).fill(0) : [7, 8, 11, 12, 14, 17, 16, 14, 15, 16, 15, 12, 11, 12, 10, 10, 10, 8, 8, 8, 8, 7, 5, 4];
+    const forecastedData = [5, 6, 6, 7, 8, 13, 11, 15, 15, 13, 12, 12, 13, 12, 11, 10, 8, 9, 10, 6, 5, 3, 3, 3];
+
+    // Toggle legend item visibility
+    document.getElementById("scheduledLegendItem").style.display = onlyForecast ? 'none' : 'flex';
+
+    if (myChart) myChart.destroy();
+
+    myChart = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'Scheduled Hours',
+                    data: scheduledData,
+                    backgroundColor: '#2563eb',
+                    borderRadius: 6,
+                    barPercentage: 0.6,
+                    hidden: onlyForecast
+                },
+                {
+                    label: 'Forecasted Hours',
+                    data: forecastedData,
+                    backgroundColor: '#22c55e',
+                    borderRadius: 6,
+                    barPercentage: 0.6,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    ticks: {
+                        stepSize: 5,
+                        font: { weight: 'bold' }
+                    },
+                    grid: { color: '#f1f5f9' }
+                },
+                x: {
+                    grid: { display: false },
+                    ticks: {
+                        font: { size: 10, weight: 'bold' }
+                    }
+                }
+            }
+        }
+    });
+}
+
+function checkDuration() {
+    const start = document.getElementById("shiftStartTime").value;
+    const end = document.getElementById("shiftEndTime").value;
+    const breakBox = document.getElementById("breakSuggestion");
+    if(start && end) {
+        const startH = parseInt(start.split(':')[0]); const endH = parseInt(end.split(':')[0]);
+        if((endH - startH) >= 6) breakBox.classList.remove("hidden");
+        else breakBox.classList.add("hidden");
+    }
+}
+function applySuggestedBreak() { document.getElementById("breakStart").value = "12:00"; document.getElementById("breakEnd").value = "12:30"; document.getElementById("breakSuggestion").classList.add("hidden"); }
+function handleSortChange(criteria) {
+    if(criteria === 'name') employeeData.sort((a,b) => a.name.localeCompare(b.name));
+    else if (criteria === 'position') employeeData.sort((a,b) => a.position.localeCompare(b.position));
+    else if (criteria === 'hours') employeeData.sort((a,b) => b.totalHours - a.totalHours);
+    renderScheduleTable();
+}
+function runAIScheduling() {
+    const btn = document.getElementById("aiRunBtn");
+    btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i> Generating...'; lucide.createIcons();
+    setTimeout(() => { closeAIModal(); renderScheduleTable(); btn.innerHTML = '<i data-lucide="play-circle" class="w-5 h-5"></i> Start AI Generation'; lucide.createIcons(); }, 1500);
+}
+function performCopy() { closeCopyModal(); renderScheduleTable(); }
+function saveInitiatePreferences() { closeInitiateModal(); renderScheduleTable(); }
+
+/* CORE DASHBOARD FUNCTIONS */
+function renderCalendar() {
+    const grid = document.getElementById('calendarGrid');
+    const monthTitle = document.getElementById('calendarMonthTitle');
+    if(!grid || !monthTitle) return; grid.innerHTML = '';
+    const year = calendarViewDate.getFullYear(); const month = calendarViewDate.getMonth();
+    monthTitle.innerText = calendarViewDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    const firstDay = new Date(year, month, 1).getDay(); const daysInMonth = new Date(year, month + 1, 0).getDate(); const prevMonthDays = new Date(year, month, 0).getDate();
+    for(let i = firstDay; i > 0; i--) { const div = document.createElement('div'); div.className = 'h-9 flex items-center justify-center text-slate-300'; div.innerText = prevMonthDays - i + 1; grid.appendChild(div); }
+    for(let i = 1; i <= daysInMonth; i++) {
+        const div = document.createElement('div'); const isSelected = activeDate.getDate() === i && activeDate.getMonth() === month && activeDate.getFullYear() === year;
+        div.className = `h-9 flex items-center justify-center rounded-lg cursor-pointer transition-colors ${isSelected ? 'bg-blue-600 text-white font-bold' : 'hover:bg-slate-50'}`;
+        div.innerText = i;
+        div.onclick = (e) => { e.stopPropagation(); activeDate = new Date(year, month, i); document.getElementById('calendarMenu').classList.add('hidden'); updateDateRangeLabel(); renderScheduleTable(); renderCalendar(); };
+        grid.appendChild(div);
+    }
+}
+function prevCalendarMonth(e) { e.stopPropagation(); calendarViewDate.setMonth(calendarViewDate.getMonth() - 1); renderCalendar(); }
+function nextCalendarMonth(e) { e.stopPropagation(); calendarViewDate.setMonth(calendarViewDate.getMonth() + 1); renderCalendar(); }
+
+function sortEmployeesByName() {
+    sortAsc = !sortAsc;
+    employeeData.sort((a, b) => sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name));
+    renderScheduleTable();
+}
+
+function buildShift(role, customLabel = null, customTime = "08:00 - 16:00", hasBreak = true, isMulti=false){
+
+    let clsMap = {
+        "General Manager":"shift-gm",
+        "Shift Leader":"shift-leader",
+        "Line Cook":"shift-kitchen",
+        "Cashier":"shift-cashier"
+    };
+
+    let cls = clsMap[role] || "shift-kitchen";
+
+    let breakIcon = hasBreak ? `<div class="break-indicator"><i data-lucide="coffee" class="w-3 h-3"></i></div>` : '';
+
+    let infoBtn = isMulti 
+        ? `<div class="action-icon info" onclick="openMultishiftPopup(event)"><i data-lucide="info" class="w-3.5 h-3.5"></i></div>` 
+        : ``;
+
+    return `
+    <div class="shiftBox ${cls}" draggable="true">
+        ${breakIcon}
+        <div class="font-semibold text-[11px] leading-tight">${customTime}</div>
+
+        <div class="shift-actions">
+            ${infoBtn}
+            <div class="action-icon" onclick="openAssignModal(this)"><i data-lucide="pencil" class="w-3.5 h-3.5"></i></div>
+            <div class="action-icon" onclick="deleteShift(event)"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></div>
+            <div class="action-icon" onclick="openAlertFromShift(event)"><i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i></div>
+        </div>
+    </div>`;
+}
+
+function openMultishiftPopup(e){
+    e.stopPropagation();
+
+    const popup = document.getElementById("multishiftPopup");
+
+    popup.innerHTML = `
+    <div class="flex items-center justify-between mb-2 pb-1 border-b">
+        <span class="text-[12px] font-bold text-slate-800">Multiple Shifts</span>
+        <button onclick="closeMultishiftPopup()" class="text-slate-400 hover:text-red-500">
+            <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+    </div>
+
+    <div class="space-y-2">
+        <div class="p-2 bg-blue-50 rounded border border-blue-200">
+            <div class="text-[11px] font-bold text-blue-800">08:00 AM – 12:00 PM</div>
+            <div class="text-[10px] text-blue-600">Cashier</div>
+        </div>
+
+        <div class="p-2 bg-green-50 rounded border border-green-200">
+            <div class="text-[11px] font-bold text-green-800">04:00 PM – 08:00 PM</div>
+            <div class="text-[10px] text-green-600">Kitchen</div>
+        </div>
+    </div>`;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    popup.style.top = (rect.top + 30) + "px";
+    popup.style.left = rect.left + "px";
+
+    popup.classList.remove("hidden");
+    lucide.createIcons();
+}
+function openSharedStorePopup(e){
+    e.stopPropagation();
+
+    const popup = document.getElementById("sharedStorePopup");
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    popup.style.top = (rect.top + 30) + "px";
+    popup.style.left = rect.left + "px";
+
+    popup.classList.remove("hidden");
+    lucide.createIcons();
+}
+
+function closeMultishiftPopup() {
+    document.getElementById("multishiftPopup").classList.add("hidden");
+}
+
+function buildMultiShift(){
+    return `
+    <div class="shiftBox shift-multi" draggable="true">
+
+        <div class="font-semibold text-[11px] leading-tight">
+            MULTI SHIFT
+        </div>
+
+        <div class="shift-actions">
+            <div class="action-icon info" onclick="openMultishiftPopup(event)">
+                <i data-lucide="info" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon" onclick="openAssignModal(this)">
+                <i data-lucide="pencil" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon" onclick="deleteShift(event)">
+                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon" onclick="openAlertFromShift(event)">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            </div>
+        </div>
+
+    </div>`;
+}
+
+function toggleUnassignedVisibility() { isUnassignedVisible = !isUnassignedVisible; renderScheduleTable(); }
+
+function renderScheduleTable(list=employeeData){
+	const prevSearch = document.getElementById("empSearch")?.value || "";
+    const gridBody = document.getElementById("scheduleTable");
+    const gridHead = document.querySelector("#mainScheduleTable thead tr");
+    if(!gridBody || !gridHead) return;
+    let html=""; let columns = []; let cellWidth = 120;
+    const startOfMock = new Date(2026, 1, 2);
+    const activeDayIdx = Math.floor(Math.abs(activeDate - startOfMock) / (1000 * 60 * 60 * 24));
+
+    if(activeView === 'day') { 
+        cellWidth = 80; for(let i=0; i<24; i++){ let h = (4 + i) % 24; columns.push(`${h % 12 === 0 ? 12 : h % 12} ${h >= 12 ? "PM" : "AM"}`); }
+    } else if(activeView === 'week') { 
+        const days = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"];
+        const start = new Date(activeDate); start.setDate(activeDate.getDate() - activeDate.getDay());
+        
+        columns = days.map((d, i) => { 
+            const dd = new Date(start); 
+            dd.setDate(start.getDate() + i); 
+            const dateDisplay = `(${String(dd.getMonth() + 1).padStart(2, '0')}/${String(dd.getDate()).padStart(2, '0')})`;
+            return {
+                label: d,
+                date: dateDisplay,
+                fullLabel: `${d} ${dateDisplay}`
+            }; 
+        });
+
+        const wrapWidth = document.getElementById("tableScrollContainer").clientWidth;
+        cellWidth = wrapWidth > 260 ? Math.floor((wrapWidth - 260) / 7) : 150;
+    } else { 
+        const daysInMonth = new Date(activeDate.getFullYear(), activeDate.getMonth() + 1, 0).getDate();
+        for(let i=1; i<=daysInMonth; i++) {
+            const dd = new Date(activeDate.getFullYear(), activeDate.getMonth(), i);
+            const d = ["SUN", "MON", "TUE", "WED", "THU", "FRI", "SAT"][dd.getDay()];
+            const dateDisplay = `(${String(dd.getMonth() + 1).padStart(2, '0')}/${String(dd.getDate()).padStart(2, '0')})`;
+            columns.push({
+                label: d,
+                date: dateDisplay,
+                fullLabel: `${d} ${dateDisplay}`
+            });
+        }
+        cellWidth = 150;
+    }
+
+    if(activeView === 'day' || activeView === 'month'){
+        document.getElementById("mainScheduleTable").style.width = (260 + columns.length * cellWidth) + "px";
+    }else{
+        document.getElementById("mainScheduleTable").style.width = "100%";
+    }
+
+    let headHtml = `
+<th class="text-left px-4 py-3 w-[260px] sticky left-0 bg-slate-50 z-30 shadow-[1px_0_0_#e5e7eb]">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-1 cursor-pointer" onclick="sortEmployeesByName()">
+            Employees
+            <i data-lucide="arrow-up-down" class="inline w-3 h-3 text-slate-400"></i>
+        </div>
+        <div class="relative flex items-center">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 cursor-pointer" onclick="toggleEmpSearch(event)"></i>
+            <input id="empSearch" oninput="filterEmployees()" placeholder="Search..." class="hidden ml-2 border rounded px-2 py-1 text-[11px] w-[120px] bg-white"/>
+        </div>
+    </div>
+</th>`;
+
+    if(activeView === 'week' || activeView === 'month') {
+        columns.forEach(c => {
+            headHtml += `
+            <th class="px-3 py-2 bg-slate-50" style="width:${cellWidth}px">
+                <div class="flex items-center justify-between gap-1">
+                    <div class="text-black font-semibold text-[11px] uppercase">
+                        ${c.label} <span class="text-black/80 font-medium">${c.date}</span>
+                    </div>
+                    <div class="flex gap-1">
+                        <div class="header-icon-btn" onclick="openDayNotes('${c.fullLabel}')"><i data-lucide="file-text"></i></div>
+                        <div class="header-icon-btn" onclick="openChartView('${c.fullLabel}')"><i data-lucide="bar-chart-2"></i></div>
+                    </div>
+                </div>
+            </th>`;
+        });
+    } else {
+        columns.forEach(c => headHtml += `<th class="px-3 text-center py-2 font-bold text-slate-400 uppercase text-[10px]" style="width:${cellWidth}px">${c}</th>`);
+    }
+    
+    gridHead.innerHTML = headHtml;
+
+    // UNASSIGNED ROW
+    html += `<tr class="unassigned-summary-row border-b-2 border-slate-200">
+        <td class="px-4 py-3 sticky left-0 bg-[#f8fafc] z-[15] shadow-[1px_0_0_#e5e7eb]">
+            <div class="flex flex-col items-center justify-center">
+                <div class="flex items-center gap-1 mb-1"><span class="font-bold text-[13px] text-slate-800">Unassigned</span><span class="pending-badge">11 Pending</span></div>
+                <div class="flex gap-1.5 w-full">
+                    <button onclick="toggleUnassignedVisibility()" class="flex-1 px-1 py-1 bg-white border rounded text-[10px] font-bold text-blue-600 flex items-center justify-center gap-1"><i data-lucide="${isUnassignedVisible ? 'eye-off' : 'eye'}" class="w-2.5 h-2.5"></i> ${isUnassignedVisible ? 'Hide' : 'Show'}</button>
+                    <button onclick="openUnassignedModal()" class="flex-1 px-1 py-1 bg-indigo-600 text-white rounded text-[10px] font-bold">Offer</button>
+                </div>
+            </div>
+        </td>`;
+    columns.forEach((_, idx) => {
+        if(isUnassignedVisible) { html += `<td class="dropZone" style="width:${cellWidth}px"><div class="shiftBox unassigned-shift !h-1/2 !py-0.5 border-l-blue-500 !min-h-0"><div class="font-bold text-[9px]">08:00A - 4:00P</div><div class="text-[8px] opacity-70">Kitchen</div></div></td>`; }
+        else { html += `<td class="text-center bg-white" style="width:${cellWidth}px"><span class="text-[11px] font-bold text-blue-600">${(idx % 3) + 1} Shift(s)</span></td>`; }
+    });
+    html += `</tr>`;
+
+    // EMPLOYEES ROWS
+    list.forEach(emp => {
+        let statusHtml = (emp.isShared ? `<span class="status-badge shared-badge">S</span>` : '') + (emp.isMinor ? `<span class="status-badge minor-badge">M</span>` : '');
+        html += `<tr class="empRow" data-emp-id="${emp.id}"><td class="px-4 py-3 flex items-center gap-3 sticky left-0 bg-white z-[15] shadow-[1px_0_0_#e5e7eb] cursor-pointer" onclick="openActionModal(event, ${emp.id})"><img src="${emp.avatar}" class="w-9 h-9 rounded-full border border-slate-100 shrink-0"><div class="min-w-0"><div class="font-bold text-[13px] text-blue-600 hover:underline truncate flex items-center gap-1">
+${emp.name}${statusHtml}
+${emp.alerts && emp.alerts.length ? `<i data-lucide="alert-triangle" class="w-3.5 h-3.5 text-amber-500 cursor-pointer" onclick="openAlertPopup(event,${emp.id})"></i>` : ``}
+</div><div class="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Hrs ${emp.totalHours} | OT 0.0</div></div></td>`;
+        
+        columns.forEach((_, colIdx) => {
+            const currentDayIdx = activeView === 'day' ? activeDayIdx : colIdx;
+            const hourAtCol = activeView === 'day' ? (4 + colIdx) % 24 : null;
+            
+            const isFullUnavail = emp.unavailableDays.includes(currentDayIdx);
+            const partial = emp.partialUnavailableDays;
+            const other = emp.otherStoreShifts;
+
+            let cellContent = `<div class="addShift" onclick="openAssignModal(this)">+ Add</div>`;
+            
+            if (activeView === 'day') {
+                if (isFullUnavail) {
+                    cellContent = `<div class="unavailable-cell">Unavailable</div>`;
+                } else if (other && hourAtCol >= other.start && hourAtCol < other.end) {
+    cellContent = `
+    <div class="other-store-shift shiftBox" title="Assigned to ${other.store} (${other.time})">
+
+        <div class="store-label">Shared @${other.store}</div>
+
+        <div class="shift-actions">
+            <div class="action-icon" onclick="openAssignModal(this)">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon">
+                <i data-lucide="info" class="w-3.5 h-3.5" onclick="openSharedStorePopup(event)"></i>
+            </div>
+
+            <div class="action-icon" onclick="openAlertFromShift(event)">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            </div>
+        </div>
+
+    </div>`;
+} else if (partial && hourAtCol >= partial.start && hourAtCol < partial.end) {
+                    cellContent = `<div class="partial-unavailable" title="Restricted availability: ${partial.label}"><i data-lucide="alert-circle" class="w-3.5 h-3.5"></i></div>`;
+                } else if (emp.shift && hourAtCol === emp.shift.start) {
+                    const duration = emp.shift.end - emp.shift.start;
+                    const clsMap = {
+    "General Manager":"shift-gm",
+    "Shift Leader":"shift-leader",
+    "Line Cook":"shift-kitchen"
+};
+const cls = clsMap[emp.position] || "shift-kitchen";
+                    cellContent = `
+                        <div class="shiftBox ${cls}" 
+                             style="position:absolute; left:0; top:2px; height:100%; width:${duration * cellWidth}px; z-index:5;">
+                            <div class="flex flex-col items-center justify-center h-full text-center">
+                                <div class="font-bold text-[11px]">${emp.shift.time}</div>
+                            </div>
+                        </div>`;
+                } else if (emp.shift && hourAtCol > emp.shift.start && hourAtCol < emp.shift.end) {
+                    cellContent = ``;
+                }
+            } else {
+                if (emp.id === 0 && colIdx === 0) {
+    cellContent = `
+    <div class="other-store-shift shiftBox" title="Assigned to STORE B (14:00 - 16:00)">
+
+        <div class="store-label">Shared @STORE B</div>
+
+        <div class="shift-actions">
+            <div class="action-icon" onclick="openAssignModal(this)">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon">
+                <i data-lucide="info" class="w-3.5 h-3.5" onclick="openSharedStorePopup(event)"></i>
+            </div>
+
+            <div class="action-icon" onclick="openAlertFromShift(event)">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            </div>
+        </div>
+
+    </div>`;
+} else if (emp.id === 0 && colIdx === 1) {
+                    cellContent = buildMultiShift();
+                } else if (isFullUnavail) {
+                    cellContent = `<div class="unavailable-cell" title="Employee is unavailable on this day">Unavailable</div>`;
+                } else if (partial && colIdx === 4) {
+    cellContent = `
+    <div class="partial-unavailable shiftBox" title="Restricted availability: ${partial.label}">
+
+        <div class="font-bold text-[10px]">PARTIAL AVAILABLE</div>
+        <div class="text-[9px]">${partial.label}</div>
+
+        <div class="shift-actions">
+            <div class="action-icon" onclick="openAssignModal(this)">
+                <i data-lucide="plus" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon">
+                <i data-lucide="clock" class="w-3.5 h-3.5"></i>
+            </div>
+
+            <div class="action-icon" onclick="openAlertFromShift(event)">
+                <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            </div>
+        </div>
+
+    </div>`;
+} else if (Math.random() < 0.6) {
+                    cellContent = buildShift(emp.position, null, "08:00 - 16:00", (emp.id % 2 === 0));
+                }
+            }
+            html += `<td style="width:${cellWidth}px">${cellContent}</td>`;
+        });
+        html += `</tr>`;
+    });
+    gridBody.innerHTML = html;
+    renderStatsFooter(columns, cellWidth);
+	setTimeout(()=>{
+        const input = document.getElementById("empSearch");
+        if(input) input.value = prevSearch;
+    },0);
+    lucide.createIcons();
+}
+
+function renderStatsFooter(columns, cellWidth) {
+    const summaryRow = document.getElementById("summaryStatsRow");
+    const detailsContainer = document.getElementById("detailsRowsContainer");
+    if(!summaryRow || !detailsContainer) return;
+    const rowWidth = columns.length * cellWidth;
+    summaryRow.style.width = rowWidth + "px";
+    
+    let totH = 479;
+    const totalLabel = document.getElementById("footerTotalLabel");
+    if(totalLabel) totalLabel.innerText = `Total Hours ${totH}.00 | 33.37%`;
+
+    summaryRow.innerHTML = columns.map((_, i) => `<div class="flex flex-col justify-center border-r shrink-0" style="width:${cellWidth}px"><span class="text-[10px] font-bold text-slate-800">Hrs ${(68.43 + Math.sin(i)).toFixed(2)}</span><span class="text-[9px] text-red-500 font-bold">${(30 + Math.cos(i)*5).toFixed(2)}%</span></div>`).join('');
+    
+    const statsRows = [
+        { label: "Forecasted Sales", total: "$31,767", color: "text-slate-500", base: 3500 },
+        { label: "Forecasted Transactions", total: "1,477", color: "text-slate-500", base: 180 },
+        { label: "No Of Items Sold", total: "0", color: "text-slate-500", base: 0 },
+        { label: "Forecast Hrs", total: "510", color: "text-slate-500", base: 70 },
+        { label: "Variance Hrs", total: "-31.00", color: "text-red-500", base: -0.5 },
+        { label: "Sch $", total: "$10,600", color: "text-slate-800", base: 1412 },
+        { label: "Budget", total: "0.00 | 30.56", color: "text-slate-500", base: 8.41 },
+        { label: "Variance", total: "0.00 | -3.09", color: "text-red-500", base: 8.41 }
+    ];
+
+    detailsContainer.innerHTML = statsRows.map(s => `
+        <div class="stats-summary-bar border-b border-slate-100 h-9">
+            <div class="sticky-footer-label flex shrink-0 bg-[#f8fafc] z-20">
+                <div class="stats-row-label">${s.label}</div>
+                <div class="stats-row-total">${s.total}</div>
+            </div>
+            <div class="stats-content-area h-full overflow-hidden">
+                <div class="flex h-full" style="width:${rowWidth}px">
+                    ${columns.map((_, idx) => `
+                        <div class="flex items-center justify-center border-r shrink-0" style="width:${cellWidth}px">
+                            <span class="text-[11px] font-medium ${s.color}">${(s.base + (idx * 8.41)).toFixed(2)}</span>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+/* MODAL CONTROL */
+function openAddEmployeeModal() { document.getElementById("addEmployeeModal").classList.remove("hidden"); document.getElementById("addEmployeeModal").classList.add("flex"); lucide.createIcons(); }
+function closeAddEmployeeModal() { document.getElementById("addEmployeeModal").classList.add("hidden"); }
+function openUnassignedModal() {
+    document.getElementById("unassignedModal").classList.remove("hidden"); document.getElementById("unassignedModal").classList.add("flex");
+    const grid = document.getElementById("offerEmployeeGrid");
+    grid.innerHTML = offerEmployees.map(e => `<div class="emp-offer-card border-l-4 border-l-blue-500"><div class="flex justify-between items-start mb-2"><div class="flex items-center gap-3"><div class="emp-badge">${e.initials}</div><div><div class="font-bold text-[13px] text-slate-800 leading-none">${e.name}</div><div class="text-[10px] text-slate-400 font-bold uppercase mt-1">${e.pos}</div></div></div><input type="checkbox"></div><div class="mt-4 flex justify-between"><div class="text-[10px] font-bold text-blue-600 uppercase">Worked: ${e.worked}</div><div class="text-[10px] font-bold text-slate-800">$${e.rate}</div></div></div>`).join('');
+    lucide.createIcons();
+}
+function closeUnassignedModal() { document.getElementById("unassignedModal").classList.add("hidden"); }
+function openAssignModal(el){
+
+    const td = el.closest("td");
+    if(!td) return;
+
+    activeCell = td;
+
+    const tr = td.closest("tr");
+    if (!tr) return;
+
+    const empId = tr.getAttribute("data-emp-id");
+    const emp = employeeData.find(e => e.id == empId);
+
+    const warning = document.getElementById("modalAvailabilityWarning");
+    const text = document.getElementById("warningText");
+
+    const availabilityBanner = document.querySelector("#assignModal .bg-green-100");
+
+    // reset modal state
+    warning.classList.add("hidden");
+    if(availabilityBanner) availabilityBanner.style.display = "flex";
+
+    /* -------- PARTIAL AVAILABILITY -------- */
+    const partialCell = td.querySelector(".partial-unavailable");
+    if(partialCell){
+        warning.classList.remove("hidden");
+        text.innerText = "Employee unavailable from 08:00 to 12:00";
+        if(availabilityBanner) availabilityBanner.style.display = "none";
+    }
+
+    /* -------- SHARED STORE -------- */
+    const sharedCell = td.querySelector(".other-store-shift");
+    if(sharedCell){
+        warning.classList.remove("hidden");
+        text.innerText = "Employee has shift in another store from 14:00 to 16:00";
+        if(availabilityBanner) availabilityBanner.style.display = "none";
+    }
+
+    /* -------- NORMAL UNAVAILABLE -------- */
+    const fullUnavailable = td.querySelector(".unavailable-cell");
+    if(fullUnavailable){
+        warning.classList.remove("hidden");
+        text.innerText = "Employee unavailable for the entire day";
+        if(availabilityBanner) availabilityBanner.style.display = "none";
+    }
+
+    // reset break suggestion
+    document.getElementById("breakSuggestion").classList.add("hidden");
+
+    // open modal
+    const modal = document.getElementById("assignModal");
+    modal.classList.remove("hidden");
+    modal.classList.add("flex");
+
+    lucide.createIcons();
+}
+function closeAssignModal(){ document.getElementById("assignModal").classList.add("hidden"); }
+function switchView(v){ 
+    activeView = v; ['btnDay', 'btnWeek', 'btnMonth'].forEach(id => { const btn = document.getElementById(id); if (btn) btn.className = "px-4 py-1.5 text-[12px] font-bold rounded-lg transition-all"; });
+    const activeBtn = document.getElementById('btn' + v.charAt(0).toUpperCase() + v.slice(1)); if (activeBtn) activeBtn.className += " bg-white shadow-sm text-blue-600";
+    updateDateRangeLabel(); renderScheduleTable(); 
+}
+function openActionModal(e, id) { 
+    const emp = employeeData.find(e => e.id == id); const overlay = document.getElementById("empActionOverlay"); const card = document.getElementById("empActionCard");
+    if (emp && overlay && card) { document.getElementById("actionModalName").innerText = emp.name; const rect = e.currentTarget.getBoundingClientRect(); card.style.top = (rect.top - 10) + "px"; card.style.left = (rect.right + 20) + "px"; overlay.classList.remove("hidden"); }
+}
+function closeActionModal() { document.getElementById("empActionOverlay").classList.add("hidden"); }
+function toggleUnassignedDept() { document.getElementById("unassignedDeptMenu").classList.toggle("hidden"); }
+function filterEmployees(){
+    const input = document.getElementById("empSearch");
+    if(!input) return;
+    const v = input.value.toLowerCase();
+    const filtered = employeeData.filter(e => e.name.toLowerCase().includes(v));
+    renderScheduleTable(filtered);
+}
+function updateDateRangeLabel() { document.getElementById('dateRangeText').innerText = activeDate.toLocaleDateString('default', { month: 'short', day: '2-digit', year: 'numeric' }); }
+function handleMoreOption(type) { document.getElementById('moreOptionsMenu').classList.add('hidden'); }
+function handleAction(type) { if(type==='edit') openAssignModal(activeCell); closeActionModal(); }
+function openMoreMenu(e){ e.stopPropagation(); const m = document.getElementById("moreOptionsMenu"); m.classList.remove("hidden"); m.style.top = e.clientY + "px"; m.style.left = e.clientX + "px"; lucide.createIcons(); }
+function saveShift(){ if(activeCell) activeCell.innerHTML = buildShift("Line Cook"); closeAssignModal(); }
+function toggleCalendarMenu(){ document.getElementById("calendarMenu").classList.toggle("hidden"); if(!document.getElementById("calendarMenu").classList.contains("hidden")) renderCalendar(); }
+function toggleStore(){ document.getElementById("storeMenu").classList.toggle("hidden"); }
+function toggleApps(){ document.getElementById("appsMenu").classList.toggle("hidden"); }
+function toggleStatsDetails() { document.getElementById("statsDetails").classList.toggle("hidden"); document.getElementById("statsChevron").classList.toggle("rotate-180"); }
+
+window.addEventListener('mousedown', function(e) {
+    const menus = ['calendarMenu','moreOptionsMenu','unassignedDeptMenu','storeMenu','appsMenu','filtersPopover','sortPopover','actionDropdown','exportMenu','coverageExportMenu','timeoffExportMenu','multishiftPopup','sharedStorePopup'];
+    menus.forEach(id => { const m = document.getElementById(id); if (m && !m.classList.contains("hidden") && !m.contains(e.target)) m.classList.add("hidden"); });
+    if (document.getElementById("empActionCard") && !document.getElementById("empActionCard").contains(e.target)) closeActionModal();
+});
+window.onload = () => { 
+    renderCalendar(); 
+    updateDateRangeLabel(); 
+    switchView('week');   
+    lucide.createIcons(); 
+};
+function openTemplateModal(){
+    closeInitiateModal();
+    document.getElementById("templateModal").classList.remove("hidden");
+    document.getElementById("templateModal").classList.add("flex");
+    lucide.createIcons();
+}
+function closeTemplateModal(){
+    document.getElementById("templateModal").classList.add("hidden");
+}
+function openAlertPopup(e,id){
+    e.stopPropagation();
+    const emp = employeeData.find(x=>x.id===id);
+    const popup = document.getElementById("alertPopup");
+    const list = document.getElementById("alertList");
+    list.innerHTML = emp.alerts.map(a=>`
+        <div class="flex gap-2 text-red-600 font-semibold">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>${a}
+        </div>`).join("");
+    popup.style.top = e.clientY+"px";
+    popup.style.left = e.clientX+"px";
+    popup.classList.remove("hidden");
+    lucide.createIcons();
+}
+
+window.addEventListener("click",(e)=>{
+    if(!e.target.closest("#alertPopup"))
+        document.getElementById("alertPopup").classList.add("hidden");
+});
+function openAuditReport(){
+    document.getElementById("auditReportModal").classList.remove("hidden");
+    document.getElementById("auditReportModal").classList.add("flex");
+    lucide.createIcons();
+}
+function closeAuditReport(){
+    document.getElementById("auditReportModal").classList.add("hidden");
+}
+function toggleExportMenu(){
+    document.getElementById("exportMenu").classList.toggle("hidden");
+}
+function exportAuditPDF(){
+    const win = window.open('', '', 'width=900,height=700');
+    const html = `<html><head><title>Audit Report</title><style>body{font-family:Arial;padding:20px;}table{border-collapse:collapse;width:100%;}th,td{border:1px solid #ccc;padding:6px;font-size:12px;}th{background:#f1f5f9;text-align:left;}</style></head><body><h3>Audit Trail Report</h3>${document.querySelector("#auditReportModal table").outerHTML}</body></html>`;
+    win.document.write(html);
+    win.document.close();
+    win.print();
+}
+function exportAuditCSV(){
+    let rows = [...document.querySelectorAll("#auditReportModal table tr")];
+    let csv = rows.map(r=>[...r.children].map(c=>c.innerText).join(",")).join("\n");
+    let blob = new Blob([csv], {type:'text/csv'});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "AuditReport.csv";
+    a.click();
+}
+function openSaveTemplateModal(){
+    document.getElementById("saveTemplateModal").classList.remove("hidden");
+    document.getElementById("saveTemplateModal").classList.add("flex");
+}
+function closeSaveTemplateModal(){
+    document.getElementById("saveTemplateModal").classList.add("hidden");
+}
+function saveTemplate(){
+    const name = document.getElementById("templateNameInput").value;
+    alert("Template Saved : "+name);
+    closeSaveTemplateModal();
+}
+function openTimeoffReport(){
+    document.getElementById("timeoffReportModal").classList.remove("hidden");
+    document.getElementById("timeoffReportModal").classList.add("flex");
+    lucide.createIcons();
+}
+function closeTimeoffReport(){
+    document.getElementById("timeoffReportModal").classList.add("hidden");
+}
+function toggleTimeoffExport(){
+    document.getElementById("timeoffExportMenu").classList.toggle("hidden");
+}
+function exportTimeoffPDF(){
+    const win = window.open('', '', 'width=900,height=700');
+    win.document.write(document.querySelector("#timeoffTable").outerHTML);
+    win.print();
+}
+function exportTimeoffCSV(){
+    let rows = [...document.querySelectorAll("#timeoffTable tr")];
+    let csv = rows.map(r=>[...r.children].map(c=>c.innerText).join(",")).join("\n");
+    let blob = new Blob([csv], {type:'text/csv'});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "TimeoffReport.csv";
+    a.click();
+}
+function openDailyCoverage(){
+    const tbody = document.getElementById("coverageEmployeeBody");
+    let rows = "";
+    for(let i=0;i<10;i++){
+        rows += `<tr class="border-b"><td class="px-4 py-3"><div class="font-semibold text-blue-600">Employee ${i+1}</div><div class="text-[10px] text-slate-500 font-bold">06:00 Hrs | 30:30 Hrs</div></td>`;
+        for(let h=0;h<24;h++){
+            if(h===8){
+                rows += `<td colspan="6" class="relative"><div class="shiftBox manager !h-8 !rounded-full !py-0 flex items-center justify-center text-[10px] font-bold">8:00A–2:00P<span class="ml-2 bg-white/20 px-2 py-0.5 rounded-full text-[9px]">LINE 1-2 COOK</span></div></td>`;
+                h=13;
+            }else{
+                rows += `<td></td>`;
+            }
+        }
+        rows += `</tr>`;
+    }
+    tbody.innerHTML = rows;
+    document.getElementById("dailyCoverageModal").classList.remove("hidden");
+    document.getElementById("dailyCoverageModal").classList.add("flex");
+    lucide.createIcons();
+}
+function closeDailyCoverage(){
+    document.getElementById("dailyCoverageModal").classList.add("hidden");
+}
+function toggleCoverageExport(){
+    document.getElementById("coverageExportMenu").classList.toggle("hidden");
+}
+function exportCoveragePDF(){
+    const win = window.open('', '', 'width=1200,height=700');
+    win.document.write(document.querySelector("#dailyCoverageModal .p-6").outerHTML);
+    win.print();
+}
+function exportCoverageCSV(){
+    let csv = "Employee,Shift\nDaniel Velazquez,8:00A - 2:00P LINE 1-2 COOK";
+    let blob = new Blob([csv], {type:'text/csv'});
+    let a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "DailyCoverage.csv";
+    a.click();
+}
+function toggleEmpSearch(e){
+    e.stopPropagation();
+    const input = document.getElementById("empSearch");
+    input.classList.toggle("hidden");
+    input.focus();
+}
+function openAlertFromShift(e){
+    e.stopPropagation();
+    const popup = document.getElementById("alertPopup");
+    const list = document.getElementById("alertList");
+
+    list.innerHTML = `
+        <div class="text-red-600 font-semibold flex gap-2">
+            <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i>
+            Late punch detected
+        </div>
+        <div class="text-amber-600 font-semibold flex gap-2">
+            <i data-lucide="alert-triangle" class="w-3.5 h-3.5"></i>
+            Minor labor law warning
+        </div>`;
+
+    popup.style.top = e.clientY+"px";
+    popup.style.left = e.clientX+"px";
+    popup.classList.remove("hidden");
+    lucide.createIcons();
+}
+let draggedShift=null;
+
+document.addEventListener("dragstart",e=>{
+    if(e.target.closest(".shiftBox")){
+        draggedShift=e.target.closest(".shiftBox");
+    }
+});
+
+document.addEventListener("dragover",e=>{
+    if(e.target.closest("td")) e.preventDefault();
+});
+
+document.addEventListener("drop",e=>{
+    const td=e.target.closest("td");
+    if(!td||!draggedShift)return;
+
+    let existing=td.querySelector(".shiftBox");
+
+    if(existing){
+        alert("Shift Overlapping, assign it to someone else");
+        return;
+    }
+
+    if(e.ctrlKey){
+        td.appendChild(draggedShift.cloneNode(true));
+    }else{
+        td.appendChild(draggedShift);
+    }
+
+    lucide.createIcons();
+});
+</script>
+</body>
+</html>
